@@ -10,27 +10,44 @@
 			%put ERROR: == params include input dataset, output dataset, para. ==;
 			%goto exit;
 		%end;
-/*	%if %sysfunc(indexw(&para,n)) and %sysfunc(indexw(&para,nmiss)) %then
-		%let missperc=1;*/
+	%local i j;
+
 	%let count=%eval(%length(&para)-%length(%sysfunc(compress(&para))) +1);
-	%let para2=%sysfunc(tranwrd(&para, %str( ), %nrstr(", ")));
-	%let para2="&para2";
-	data _null_;
+
+	proc sql noprint;
+		select 
+			case when index(name,"VName") then name else '' end as vname,
+			%do i=1 %to &count;
+				%let val=%scan(&para,&i);
+				case when upcase(substr(name, find(name, "_",-50)+1))=upcase("&val") 
+					then trim(name) else '' end as &val,
+			%end;
+			count(calculated vname)
+			into :vname separated by " ", 
+			%do i=1 %to &count;
+				:plist&i separated by " ",
+			%end;
+			:dim
+			from dictionary.columns
+			where libname=upcase("&pname") and memname=upcase("&dn") ;
+	quit;
+
+	data &outdn;
 		set &dn;
-		length name $32 ;
-		array vars(*) Vname_:;
-		array para(&count) $ (&para2);
-		call execute("data &outdn;	length name $32; set &dn; keep name &para;");
-		do i=1 to dim(vars);
+		length name $32 &para 8; 
+		keep name &para;
+		array vars(&dim) $ Vname_:;
+		%do i=1 %to &count;
+			array plist&i(&dim) $ &&plist&i;
+		%end;
+		do i=1 to &dim;
 			name =trim(vars[i]);
-			call symputx("var"||left(i), name);
-			call execute('name ="&var'||strip(i)||'";');
-			do j=1 to &count;
-				call execute(para[j]||'=&var'||strip(i)||'._'||para[j]||';');
-			end;
-			call execute('output &outdn;');
+			%do j=1 %to &count;
+				%let pval=%scan(&para,&j);
+				&pval=plist&j[i];
+			%end;
+			output &outdn;
 		end;
-		call execute('run;');
 	run;
 %exit:
 %mend comb_summ;	

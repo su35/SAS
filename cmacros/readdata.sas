@@ -8,7 +8,7 @@
 default is empty which means all types.
 * oriname: specify the file name in which the data would be input.
 default is empty which means all file.
-* struc: specify the data structure if it is available, for input statementã€?
+* struc: specify the data structure if it is available, for input statementï¿½?
  * *****************************************************************************************************/
 %macro readdata(path=&pdir.data, lib=ori, ext=, oriname=, delm=, struc= ) /minoperator;
 	*options nosource;
@@ -37,7 +37,7 @@ default is empty which means all file.
 					%end;
 			%end;
 
-			%mate_short(&lib);
+			%meta_short(&lib);
 		%end;
 	%else
 		%do;
@@ -78,11 +78,11 @@ default is empty which means all file.
 %macro readfile() /minoperator;
 	%local i;
 
-	%if &type in(TXT CSV DAT) %then
+	%if &type in(TXT CSV DAT ASC) %then
 		%do;
 			%if %length(%superq(struc))=0 %then
 				%do;
-					%if &type = TXT or &type=DAT %then
+					%if &type = TXT or &type=DAT or &type=ASC %then
 						%let type=tab;
 
 					proc import datafile = "&path\&fullname"
@@ -92,7 +92,7 @@ default is empty which means all file.
 						getnames=yes;
 
 						%if %length(%superq(delm)) ne 0 %then
-							delimiter="&delm";
+							delimiter="&delm"; ;
 						guessingrows=max;
 
 						%*a large number will take some time, but it is faster than semi-automatic;
@@ -157,7 +157,7 @@ default is empty which means all file.
 			%do i=1 %to &number;
 
 				proc import datafile= "&path\&fullname" 
-					out=&lib..&&sname&i 
+					out=&lib..&name._&&sname&i 
 					dbms=excel 
 					replace;
 					sheet= &&table&i;
@@ -193,7 +193,7 @@ default is empty which means all file.
 
 				proc import 
 					DATATABLE=&&table&i
-					out=&lib..&&sname&i 
+					out=&lib..&name._&&sname&i 
 					dbms=access
 					replace;
 					database= "&path\&fullname";
@@ -221,7 +221,7 @@ default is empty which means all file.
 			proc sql noprint;
 				%do i=1 %to &number;
 					%let setname=&&sname&i;
-					alter table &lib..&&sname&i
+					alter table &lib..&name._&&sname&i
 						modify &&&setname.modifylist;
 				%end;
 			quit;
