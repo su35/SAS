@@ -5,15 +5,20 @@
 	y: the target variable
 	varlist: the list of the variables of which the level need to cluster.
 	suff: the suffix used to create the new variables
-	pdn: the output dataset in which the cluster result is stored
+	outdn: the output dataset in which the cluster result is stored
 * **********************************************************/
-%macro cluslevel(dn, y, varlist, suff, pdn);
+%macro cluslevel(dn, y, varlist, suff, outdn);
 	%if %superq(dn)=  or %superq(y)=  or %superq(varlist)=  %then %do;
 			%put ERROR: parameters dataset name, target variable and indepent variable are required;
 			%goto exit;
 		%end;
 	%if %superq(suff)= %then %let suff=clus;
-	%if %superq(pdn)= %then %let pdn=cluslevel;
+	%if %superq(outdn)= %then %let outdn=cluslevel;
+	%if %sysfunc(exist(&outdn))  %then %do;
+		proc sql noprint;
+			drop table &outdn;
+		quit;
+	%end;
 	%local d;
 	%let d = 1;
 	%do %while(%scan(&varlist,&d, %str( ))^= );
@@ -95,6 +100,7 @@
 		run;
 
 		data _clus;
+			length varname $32;
 			varname ="&var";
 			suff="&suff";
 			set _clus;
@@ -102,24 +108,8 @@
 			drop clusname;
 		run;
 
-		%if %sysfunc(exist(&pdn))  %then %do;
-			proc append base=&pdn data=_clus; 
-			run;
-			%end;
-		%else %do;
-			proc datasets noprint;
-				change _clus=&pdn;
-			run; quit;
-		%end;	
-
-
-	/*	data _null_;
-			call execute('data &dn._1; 	set &dn;');
-			do i=1 to %eval(&ncl-1);
-			call execute("&var"||left(i)||'=('||"&var"||' in (&clus'||left(i)||'));');
-			end;
-			call execute('run;');
-		run;*/
+		proc append base=&outdn data=_clus; 
+		run;
 		%let d=%eval(&d+1);
 	%end;
 %exit:
