@@ -1,4 +1,8 @@
 These are practice/demo project. The data get from the internet.
+The Clinical: clinical trial analysis project.
+The Fraud: a project of predictive modeling for fraud detecting by random forest.
+The Market: a project of predictive modeling for telemarketing by logistic regression.
+The CredRisk: Credit Risk Scorecards project.
 
 SAS is the root folder. The files are organized as follows: 
 The files are organized as follows:
