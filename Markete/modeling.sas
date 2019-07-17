@@ -1,58 +1,71 @@
-/*  Building logistic model */
-data _null_;
-	set offset;
-	call symputx('pi1', pi1);
-run;
-proc sql noprint;
-	select name  
-	into :inmodel separated by " "
-	from vars 
-	where select1=1;
-quit;
-proc logistic data=train1 des outest=logpara;
-	model y_n=&inmodel /offset=off ;
-	score data=valid out=scored priorevent=&pi1 outroc=roc fitstat;
-run;
-
-data roc;
-	set roc;
-	retain total;
-	if _N_=1 then total=sum(of _pos_ -- _falneg_);
-	cutoff=_PROB_;
-	specif=1-_1MSPEC_;
-	tp=_pos_/total;
-	tn=_neg_/total;
-	fp=_falpos_/total;
-	fn=_falneg_/total;
-	depth=tp+fp;
-	pospv=tp/depth;
-	negpv=tn/(1-depth);
-	acc=tp+tn;
-	lift=pospv/&pi1;
-	keep cutoff tn fp fn tp _SENSIT_ _1MSPEC_ specif depth pospv negpv acc lift;
-run;
-/* Use the NPAR1WAY procedure to get the  Kolmogorov-Smirnov D Statistic 
-	and  the Wilcoxon-Mann-Whitney Rank sum test */
-proc npar1way edf wilcoxon data=scored;
-	class y_n;
-	var p_1;
-	output out=scorks(keep=_D_ P_KSA RENAME=(_D_=KS P_KSA=P_Value));
-run;
-/* get c-statistic.    */
-ods output Association=Association;
-proc logistic data=scored des;
-	model y_n=p_1;
+﻿/*create model candidate*/
+ods listing close;
+ods output bestsubsets=models;
+proc logistic data=train2 des  namelen=32; 
+	model y =&iv_select / selection=score start=4 stop=12 best=2; 
 run;
 ods output close;
 
-/* For Lift chart */
-proc gplot data=roc;
-	where 0.005 < depth < 0.50;
-	plot Lift*depth;
+proc freq data=valid1 noprint;
+	table y/out=work.tmp_vfreq;
 run;
+data _null_;
+	set work.tmp_vfreq (where=(y=1));
+	call symputx('pi', percent/100);
+run;
+%LogModSelect(train2,valid1,models,y, pi1=&pi)
+
+proc sgplot data=mod_result;
+	xaxis values=(0 to 20 by 1);
+	yaxis values=(0.77 to 0.8 by 0.01);
+	series y=auc x=index /group=dataset smoothconnect ;
+run;
+proc sgplot data=mod_result;
+	xaxis values=(0 to 20 by 1);
+	yaxis ranges=(4500-4800 14500-14800);
+	series y=bic x=index /group=dataset smoothconnect ;
+run;
+proc sgplot data=mod_result;
+	xaxis values=(0 to 20 by 1);
+	yaxis ranges=(0.079-0.081 0.12-0.123);
+	series y=ase x=index /group=dataset smoothconnect ;
+run;
+proc sgplot data=mod_result;
+	xaxis values=(0 to 20 by 1);
+	series y=ks x=index /group=dataset smoothconnect ;
+run;
+data _null_;
+	set models  (firstobs=11 obs=11) ;
+	call symputx("inmodel", variablesinmodel);
+run;
+/*modeling*/
+proc logistic data = train2 des namelen=32 outest=model_parm; 
+	model y =&inmodel / outroc=roc_t; 
+	output out=pred_probs p=pred_status lower=pl upper=pu;
+	score data=valid1 out=scored outroc=roc_v ;
+run;
+
+/* ***** model evaluate   ********/
+/*compare the confusion matrix of train dataset and valid dataset */
+%CMCompare(pred_probs, pred_status, scored, y)
+
+proc sql noprint;
+	select sum(y)/count(y)
+	into :rho1
+	from valid1;
 quit;
-/*%ks(scored,p_1,y_n,scored1,10)
-%PlotKS(scored1)*/
+/*rename the variables to fit the macro ModelEval*/
+data roc_v;
+	set roc_v;
+	rename _prob_=prob
+			_sensit_=sensit
+			_1mspec_=fpr;
+run;
+%ModelEval(roc_v, pi1=, rho1=&rho1);
 
-
+data customers;
+	set scored;
+	where p_1>=0.273549;
+	keep id p_1;
+run;
 

@@ -2,12 +2,6 @@
 * reporting.sas
 * create the summary and graphic reports 
 * **************************************************/
-
-/**** run project_defination.sas once for new session *******
-%let pathlen = %sysfunc(find(%sysget(SAS_EXECFILEPATH),%str(\),-260));
-%let path=%substr(%sysget(SAS_EXECFILEPATH), 1 , &pathlen);
-%include "&path.project_defination.sas";
-**************************************************************/
 options nodate ls=100 nonumber missing="";
 goptions device =png;
 %SGANNO;
@@ -86,18 +80,10 @@ run;
 
 /*use annotation, the %SGANNO had been declared on top*/
 data insertlab;
-	%sgtext(
-		label="p = &survplr",
-		textcolor= "red",
-		textstyle="italic",
-		textweight="bold",
-		x1=60,
-		y1=70,
-		x1space=datapercent,
-		y1space=datapercent
-	);
+	%sgtext(label="p = &survplr",	textcolor= "red",	textstyle="italic", 	textweight="bold",
+		x1=60,		y1=70);
 run;
-%set_gcolor(black red); 
+%SetGcolor(black red); 
 ods html5 style=style.gchangecolor;
 
 ods proclabel"Study retention for the topiramate and placebo groups";
@@ -120,20 +106,12 @@ data _null_; /*get pvalue for image*/
 	 call symputx('geepval', put(probz, 4.2) );
 run;
 data insertlab;
-	%sgtext(
-		label="p = &geepval",
-		textcolor= "black",
-		textstyle="italic",
-		textweight="bold",
-		x1=50,
-		y1=60,
-		x1space=datapercent,
-		y1space=datapercent
-	);
+	%sgtext(label="p = &geepval", textcolor= "black",	textstyle="italic",	textweight="bold",
+		x1=50, 	y1=60	);
 run;
 
 ods proclabel "Precentage of Subjects with Negative Methamphetamine Use Week";
-proc sgplot data=gee_means noborder sganno=insertlab;;
+proc sgplot data=gee_means noborder sganno=insertlab;
 	scatter y=week_mean x=week/ group=trtp;
 	reg y=means x=weeks/ group=trtp  nomarkers;
 	xaxis label="Study Week" values=(6 to 12 by 1) offsetmin=0.05 offsetmax=0.05;
@@ -143,9 +121,26 @@ run;
 /* *********************************************************************************************
 * The percentage of subjects with a negative methamphetamine use week in study weeks
 * **********************************************************************************************/
+data insertlab;
+	%sgtext(label="Negative",	textstyle="italic",	textweight="bold",	x1=20,	y1=75)
+	%sgtext(label="Positive",textstyle="italic",textweight="bold",x1=20, y1=45)
+run;
+
 ods proclabel "Treatment group and last urine result prior to randomization 
 for the percentage of subjects with a negative methamphetamine";
-/*==g version==*/
+/*==sg version==*/
+*ods graphics on /height=8in width =8in;
+proc sgplot data=base_weekval  noborder sganno=insertlab;
+	scatter y=ppcent x=avisitn /group=trtp markerattrs=(symbol=circlefilled size=10px) ;
+	series y=ppcent x=avisitn /group=trtp  lineattrs=(pattern =4 thickness=2) name="BP";
+	scatter y=tpcent x=avisitn /group=trtp markerattrs=(symbol=circlefilled size=10px) ;
+	series y=tpcent x=avisitn/group=trtp lineattrs=(pattern =1 thickness=2)  name="BT";
+	xaxis label="Study Week" values=(6 to 12 by 1) offsetmin=0.05 offsetmax=0.05;
+	yaxis label="Precentage of Subjects with Negative Methamphetamine Use Week" 
+			values=(0 to 100 by 10) offsetmin=0.05 offsetmax=0.05;
+run;
+
+/*==g version==
 goptions reset=all device=png gsfmode=append;
 axis1 label=(j=c "Study Week")
 		order=(6 to 12 by 1)
@@ -186,21 +181,20 @@ run;
 proc gplot data=base_weekval ;
 	plot ppcent*avisitn = trtp /haxis=axis1 vaxis=axis2 anno=annolen nolegend ;
 	plot2	tpcent*avisitn = trtp / vaxis=axis2 noaxis nolegend;
-run;quit;
+run;quit;*/
 
-/*==sg version==
-*ods graphics on /height=8in width =8in;
-proc sgplot data=base_weekval ;
-	scatter y=ppcent x=avisitn /group=trtp markerattrs=(symbol=circlefilled size=10px) ;
-	series y=ppcent x=avisitn /group=trtp  lineattrs=(pattern =4 thickness=2) name="BP";
-	scatter y=tpcent x=avisitn /group=trtp markerattrs=(symbol=circlefilled size=10px) ;
-	series y=tpcent x=avisitn/group=trtp lineattrs=(pattern =1 thickness=2)  name="BT";
-	xaxis label="Study Week" values=(6 to 12 by 1) offsetmin=0.05 offsetmax=0.05;
-	yaxis label="Precentage of Subjects with Negative Methamphetamine Use Week" 
-			values=(0 to 100 by 10) offsetmin=0.05 offsetmax=0.05;
-run;
-*/
+
 
 ods html5 close;
 ods html;
 *ods preferences;
+/* *************************************************************************************************
+* If there is not a main program, run following macros 
+* export .xpt files,  create define.xml file, and call pinnacle21 validator to validate the .xpt files
+
+%cdsic(SDTM)
+%cdsic(ADaM)
+* *************************************************************************************************/
+
+%cleanLib(work)
+%cleanLib(&pname)

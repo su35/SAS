@@ -1,10 +1,10 @@
 ﻿/** *************************************************
-* macro libInfor: get the dataset information
+* macro LibInfor: get the dataset information
 * parameters
 * lib: specify the library. default is user or work
 * dataset: the name of the datasets. default is _all_
 * **************************************************/
-%macro libInfor(lib=, dataset=);
+%macro LibInfor(lib=, dataset=);
 	%local i;
 	%if %superq(dataset)= %then %do;
 		proc datasets %if not(%superq(lib)=) %then lib=&lib; 
@@ -26,4 +26,4 @@
 			%let setnum = %eval(&setnum + 1);
 		%end;
 	%end;
-%mend libInfor;
+%mend LibInfor;

@@ -1,35 +1,15 @@
-﻿/**** run project_defination.sas once for new session *******
-%let pathlen = %sysfunc(find(%sysget(SAS_EXECFILEPATH),%str(\),-260));
-%let path=%substr(%sysget(SAS_EXECFILEPATH), 1 , &pathlen);
-%include "&path.project_defination.sas";
-**************************************************************//* =========== Create Demographic Summary Table =========== */
-proc sort data=addm;
-	by trtpn;
-run;
 /* *******************************************************************************
-* "blankno" define the indentation of sub-term. 
-* for listing output, using the number of blanks 
+* "blankno" define the indentation of sub-term.  for listing output, using the number of blanks 
 * for HTML output, using a "&#160;", and use javascript and CSS file to control the indentation
 * **************************************************************************************/
-data _null_;
-	call symput("blankno",'&#160;');
-	call dm_summary_set("addm", "age sex race educatyr employ maritals","trtp trtpn","n mean median min max");
-run;
+%let blankno=&#160%str(;) ;
 
-/* ==== Create AE Summary Table, Count AE on Aesoc ============ */
-proc sort data=adae; 
-	by aesoc;
-run;
-proc sql noprint;
-		create table _aesoc as
-			select distinct aesoc
-			from adae;
-quit;
-data _null_;
-	set _aesoc;
-	call symput("blankno",'&#160;');
-	call ae_summary_set("adae", aesoc);
-run;
+/* =========== Create Demographic Summary Table =========== */
+%DMSummarySet(varlist=age sex race educatyr employ maritals, class=trtp trtpn, 
+		analylist=n mean median min max)
+
+/* ======== Create AE Summary Table, Count AE on Aesoc ======== */
+%AESummarySet(adae)
 
 /*analysis dataset*/
 proc sql;
@@ -56,8 +36,8 @@ run;
 ods select none;
 ods output ProductLimitEstimates = survivalist  HomTests=_survpval;
 proc lifetest   data = comp_status;
-   time lastday * drop_censor(0);
-   strata trtp; /*trtp can be used as refer name*/
+	time lastday * drop_censor(0);
+	strata trtp; /*trtp can be used as refer name*/
 run;
 ods output close;
 ods select all;

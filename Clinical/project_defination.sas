@@ -1,4 +1,4 @@
-/* *************************************************
+﻿/* *************************************************
 * project _defination.sas
 * define project global macro variables
 * declare library, user folder and system options
@@ -6,7 +6,7 @@
 * *************************************************/
 
 /*get full path to this file*/
-%let fullpath=%sysget(SAS_EXECFILEPATH);
+%let fullpath=%sysget(sas_execfilepath);
 
 /*define the project name*/
 %let pname=%scan(&fullpath, -2, %str(\));
@@ -21,7 +21,12 @@
 data _null_;
 	if fileexist("&pdir.libori") =0 then NewDir=dcreate("libori","&pdir");
 	if fileexist("&pdir.lib")=0 then NewDir=dcreate("lib","&pdir");
+	if fileexist("&pdir.libori")=0 then NewDir=dcreate("libori","&pdir");
+	if fileexist("&pdir.outfiles")=0 then NewDir=dcreate("outfiles","&pdir");
+	if fileexist("&pdir.pmacro")=0 then NewDir=dcreate("pmacro","&pdir");
 run; 
+/*define the project out put file folder*/
+%let pout=&pdir.outfiles\;
 
 /* pub: self-defined macro, subroutine and function
 	ori: original dataset that input from data
@@ -36,11 +41,19 @@ libname library "&pdir.lib";
 options user= &pname;
 options cmplib = pub.funcs; 
 /*protect against overwriting the input data sets */
-options datastmtchk =COREKEYWORDS;
+options datastmtchk =corekeywords;
 
 /*define the custom autocall macro path*/
 filename cmacros "&proot.cmacros";
-options mautosource sasautos=(SASAUTOS cmacros);
+filename pmacro "&pdir.pmacro";
+options mautosource sasautos=(sasautos cmacros pmacro);
+%include "&proot.cmacros\tools.sas";
+/*define the format search order*/
+options fmtsearch= (&pname library);
+/*merge statement must be accompanied with by statement*/
+options mergenoby = error;
 
 options xsync noxwait ;
 
+/*copy the vardefine.csv to data folder*/
+*X "copy &proot.pub\vardefine.csv &pdir.data\vardefine.csv";

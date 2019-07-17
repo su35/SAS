@@ -1,56 +1,68 @@
-﻿/* ********* ********************* *************
+/* ********* ********************* ****************************************
 * data_prepare.sas
-* read data from raw file
-* clean the data
-* create SDTM datasets
-* create ADaM datasets
-* create analysis dataset
-* ***********************************************/
-/**** run project_defination.sas once for new session *******
-%let pathlen = %sysfunc(find(%sysget(SAS_EXECFILEPATH),%str(\),-260));
-%let path=%substr(%sysget(SAS_EXECFILEPATH), 1 , &pathlen);
-%include "&path.project_defination.sas";
-**************************************************************/
-options nonotes;
-
-/* ****************************************
-* Read data from local raw files in ori, 
-* and remove the format, informat, and label
-* ****************************************/
-%readdata();
-
-%remove_attrib(lib=ori);
+* 	read data from raw file, clean the data, create SDTM datasets,
+* 	create ADaM datasets, and create analysis dataset
+* ***********************************************************************/
+/* *************************************************************************************
+* Read data from local raw files in ori, and remove the format, informat, and label
+* *************************************************************************************/
+%ReadData();
+%RemoveAttrib(lib=ori);
 
 /*get the length of the character varibles in original dataset, and stored
 in ori_matelen.xml. This data would be helpful when defining the variable 
 length in sdtm_metadata.xlsx*/
-%get_matelen(lib=ori);
+%GetMatelen(lib=ori);
 
 /*There is no usubjid in overall original dataset, , create the usubjid for each dataset*/
-%set_usubjid(length=25);
+%SetUsubjid(length=25);
 
 /*since the data de-identification,  the date of randomization = day 0. 
 for practice reason, create a random date as a subject's ramdomizqtion date*/
-data _random;
+data random;
 	set ori.random;
 	length rand_date 8;
 	rand_date=createdate('01JUl2016'd);
 	keep studyid usubjid treat rand_date;
 run;
 
-proc sort data=_random;
+proc sort data=random;
 	by usubjid;
 run;
 /* ****************************************
 * Prepare ADTM dataset
 * ****************************************/
-/* ****************************************************************
-* When input the original data, there is no data for death and all valus in relatived columns are null. 
-* The proc import evluated them as char and couldn't be used here and hardcode the dthdtc  as unll.
-* *****************************************************************/
 libname sdtmfile  "&pdir.sdtm_metadata.xlsx";
-%make_formats;
-%make_empty_dataset(SDTM);
+/*creates a permanent SAS format library from the codelist metadata spreadsheet*/
+%MakeFormats(SDTM)
+/*creates a zero record dataset and a global macro variable called **keeplist that holds 
+* the dataset variables desired and listed in the order they should appear based on 
+* the dataset metadata spreadsheet. 
+* so that no matter how the data was prepared, variables keep in fixed order and attribute.*/
+%MakeEmptyDataset(SDTM)
+/*create length define macro variable for the sdtm dataset*/
+proc sql;
+	create table _len as
+	select substr(memname, 7) as dset, name, type, length
+	from dictionary.columns
+	where libname=upcase("&pname") and memname like "EMPTY_%";
+quit;
+proc sort data=_len;
+	by 	dset type length;
+run;
+data _null_;
+	set _len;
+	by 	dset type length;
+	length len $2000;
+	retain len;
+      id=ifc(type="char", "$", " ");
+	len=catx(" ", len, name);
+	if last.length then len=catx(" ", len, id, left(length));
+	if last.dset then do;
+		call symputx(trim(dset)||"len", len);
+		len="";
+	end;
+run;
 
 proc sql;
 	create table _dm as
@@ -69,11 +81,15 @@ proc sql;
 			case e.reasdecl when "" then "" else "1" end as decline,
 			case when e.visdate < 0 then e.visdate else e.visdate +1 end  as dmdy
 		from (ori.enrl as e left join ori.tlfb as tl on e.usubjid=tl.usubjid) left join 
-				((_random as r inner join ori.term as t on r.usubjid=t.usubjid) left join ori.fup as f on r.usubjid=f.usubjid)
+				((random as r inner join ori.term as t on r.usubjid=t.usubjid) left join ori.fup as f on r.usubjid=f.usubjid)
 				on e.usubjid=r.usubjid 
 		order by usubjid;
 quit;
-
+/* *****************************************************************************************
+* When input the original data, there is no data for death and all valus in relatived 
+* columns are null. The proc import evluated them as char and couldn't be used here 
+* and hardcode the dthdtc  as unll.
+* *****************************************************************************************/
 data dm;
 	set empty_dm 	_dm;
 	domain = "DM";
@@ -114,16 +130,16 @@ data dm;
 	keep &dmkeeplist;
 run;
 
-/*finding the illegal values*/
-%validation(ori.enrl, educatyr employ30 maritals);
+/*finding the illegal values of the variables that would be included in suppdm*/
+%LegVal(ori.enrl, educatyr employ30 maritals);
 proc sort data=ori.enrl;
 	by usubjid;
 run;
 data _suppdm;
 	merge ori.enrl(keep=studyid usubjid educatyr maritals employ30  eligible)  
-			_random(keep= usubjid  rand_date);
+			random(keep= usubjid  rand_date);
 	by usubjid;
-	length  qorig  $ 8 qnam  $ 10 qval $ 30 qlabel $ 40;
+	length  qorig  $ 8 qnam  $ 10 qval $ 30 qlabel $ 27;
 	qnam = "EDUCATYR"; qlabel = "Years of Formal Education"; 
 	if upcase(educatyr) in ("U","A","T") then educatyr = "";
 	if educatyr ne "" then qval=educatyr; 
@@ -161,7 +177,7 @@ proc sql noprint;
 	select strip(name)||"="||prxchange("s/(ae)(\d+)(type|sev|sae|rel|act|out)/$1$3$2/i", 1, name), count(name)
 	into : rename separated by " ", :memb
 	from dictionary.columns
-	where upcase(libname)="ORI" and upcase(memname)="AELOG" and prxmatch('/(ae)(\d)+(type|sev|sae|rel|act|out)/i', name);
+	where libname="ORI" and memname="AELOG" and prxmatch('/(ae)(\d)+(type|sev|sae|rel|act|out)/i', name);
 quit;
 
 proc sort data= ori.aelog;
@@ -170,7 +186,7 @@ run;
 
 data _ae;
 	length aeacn aerel aeout aesev aeser epoch aepresp $ 3 aestdy  aeendy 8;
-	merge ori.aelog (where=(aenum ne 99) rename=(&rename)  in=inae) _random(keep= usubjid  rand_date); 
+	merge ori.aelog (where=(aenum ne 99) rename=(&rename)  in=inae) random(keep= usubjid  rand_date); 
 	by usubjid;
 	 /*in aelog, there are some almost empty record except hasing a aenum = 99.*/
 	array act (48) $ aeact1-aeact48; 
@@ -225,7 +241,6 @@ data _ae;
 
 	if inae;
 run;
-%symdel rename memb;
 
 data ae;
 	set empty_ae _ae;
@@ -255,10 +270,10 @@ proc sort data= ori.dose;
 	by usubjid visid;
 run;
 
-%validation(ori.dose, t25_1 t25_2 t100_3 t100_4);
+%LegVal(ori.dose, t25_1 t25_2 t100_3 t100_4);
 data _ex ; 
 	length startdate enddate 8;
-	merge ori.dose   _random (keep=treat usubjid rand_date) end=eof;
+	merge ori.dose   random (keep=treat usubjid rand_date) end=eof;
 	by usubjid;
 
 	retain exdose exstdy _dose _date startdate;
@@ -271,8 +286,8 @@ data _ex ;
 	end;
 
 	do i=1 to 7;
-		if dos(1,i) ="U" or dos(1,i) ="A" or dos(1,i) ="T" then dos(1,i) ="0" ;
-		if dos(2,i) ="U" or dos(2,i) ="A" or dos(2,i) ="T" then dos(2,i) ="0" ;
+		if dos(1,i) in ("U","A","T") then dos(1,i) ="0" ;
+		if dos(2,i) in ("U","A","T")  then dos(2,i) ="0" ;
 		_dose= sum(25*dos(1,i), 100*dos(2,i));
 		if _dose >0 then do;
 			if exstdy =.  then do;
@@ -313,14 +328,13 @@ data ex;
 run; 
 
 proc sql noprint;
-	select prxchange("s/([a-z]*)(ev[a]?[l]?)/$1$2/i", 1, name), count(name)
-		into : evalname separated by " ", : memb
+	select quote(trim(name)), 
+		sum(case when prxmatch('/([a-z]*)(ev|eva|eval)/i', name) then 1 else 0 end), 
+		case when prxmatch('/([a-z]*)(ev|eva|eval)/i', name) then 
+			prxchange("s/([a-z]*)(ev[a]?[l]?)/$1$2/i", 1, name) else '' end
+		into :labname separated by ",", : memb, : evalname separated by " "
 		from dictionary.columns
-		where upcase(libname)="ORI" and upcase(memname)="LABS" and prxmatch('/([a-z]*)(ev|eva|eval)/i', name);
-	select '"'||trim(name)||'"' 
-		into : labname separated by ","
-		from dictionary.columns
-		where upcase(libname)="ORI" and upcase(memname)="LABS";
+		where libname="ORI" and memname="LABS";
 quit;
 %let he_chstart = %index(%bquote(&labname),"WBC");
 %let he_chlen = %eval (%index(%bquote(&labname),"URCOLOR") - &he_chstart - 1);
@@ -334,11 +348,11 @@ proc sort data=ori.labs;
 run;
 
 data _lb;
-	merge ori.labs  _random(keep=usubjid rand_date);
+	length &lblen;
+	merge ori.labs  random(keep=usubjid rand_date);
 	by usubjid;
-	length lbcat $ 12 lbstresc lborresu lborresu $ 8 lbstresn 8;
-	rename  visid = visitnum;
-	if visitnum = 0 then lbblfL="Y"; 
+	if visid = 0 then lbblfL="Y"; 
+	visitnum=visid;
 	if visdate < 0 then lbdy = visdate;
 	else lbdy = visdate + 1;
 	col_date = rand_date + lbdy;
@@ -357,8 +371,7 @@ data _lb;
 	array urinvar(9,3) $ _temporary_ (&urinvar);
 	retain he_chvar urinvar;
 	do i=1 to 25;
-		if i<11 then lbcat = "HEMATOLOGY";
-		else lbcat = "CHEMISTRY";
+		lbcat =ifc(i<11, "HEMATOLOGY",  "CHEMISTRY");
 		if he_ch(i,1) ne "" then do;
 			lbtestcd = he_chvar(i,1);
 			lbtest = he_chvar(i,1);
@@ -409,7 +422,6 @@ data _lb;
 		output;
 	end;
 run;
-%symdel evalname labname memb he_chstart he_chlen urinstart urinslen he_chvar urinvar;
 
 data lb;
  	set empty_lb _lb;
@@ -438,7 +450,7 @@ proc sort data=ori.urine;
 run;
 
 data _ur;
-	merge ori.urine _random(keep=usubjid rand_date);
+	merge ori.urine random(keep=usubjid rand_date);
 	by usubjid;
 	length  urtestcd urstresc $ 8  urorres urorresu $ 7 urstresn urdy 8;
 	if coll_dat < 0 and coll_dat >= -14 then urblfl="Y";
@@ -513,7 +525,7 @@ run;
 
 data _vs (keep=studyid usubjid vstestcd vstest vsorres vsorresu vsstresc vsstresn  
 			vsblfl visitnum visdate  vsdy);
-	merge ori.vs  _random(keep=usubjid rand_date);
+	merge ori.vs  random(keep=usubjid rand_date);
 	by usubjid;
 	length vsorresu $ 12 ;
 	rename  visid = visitnum;
@@ -545,20 +557,34 @@ data vs;
 	visit=put(visitnum, visit.);
 	keep &vskeeplist;
 run;
- %sort_seq_missing();
-%resize;
+/* **************************************************************************************
+* sorting the dataset according to the keysequence metadata specified sort order 
+* for a given dataset.
+* if there is a __seq variable in a dataset, then create the __seq value for it
+* ***************************************************************************************/
+ %SortOrder();
+
+ data status;
+ 	set ori.term;
+	where status="1";
+run;
+%CheckMissing(random=random, status=status)
+%ReLen(SDTM)
 libname sdtmfile clear;
+%Delmvars()
+%cleanLib(work)
+%cleanLib(&pname)
 
 /* ****************************************
 * Prepare ADaM dataset
 * ****************************************/
 libname adamfile  "&pdir.adam_metadata.xlsx";
-%make_empty_dataset(ADaM);
-proc sort data= _suppdm;
+%MakeEmptyDataset(ADaM)
+proc sort data= suppdm;
 	by usubjid qnam;
 run;
-proc transpose data = _suppdm 
-		out= _adsupdm(drop=_name_ rename=(randdt = randdtc 	educatyr = educatyrc));
+proc transpose data =suppdm out= _adsupdm(drop=_name_  _label_
+					rename=(randdt = randdtc 	educatyr = educatyrc));
 	var qval;
 	by usubjid;
 	id qnam;
@@ -629,7 +655,7 @@ proc sql;
 				visitnum as avisitn, input(urdtc, E8601DA10.-L) as adt ,  urdy as ady, 
 				case when urblfl = "Y" then "Y" else "" end as ablfl,
 				case when sum(urstresn)<=0 then "N" else "Y" end as crit1fl, 
-				case when calculated crit1fl = "Y" then 1 else 0 end as crit1fn,
+				case when calculated crit1fl = "Y" then 1 else 0 end as crit1fn length=3,
 				input(b.base, 3.) as base
 		from ur as u, (select  usubjid, case when sum(urstresn)<=0 then "0" else "1" end as base 
 							from ur where urblfl = "Y" and urtestcd = "METHAMPH" 
@@ -648,7 +674,9 @@ data adur;
 	keep &adurkeeplist;
 run;
 libname adamfile clear;
-
+%Delmvars()
+%cleanLib(work)
+%cleanLib(&pname)
 
 /*********************************
 * Prepare analysis dataset
@@ -665,8 +693,7 @@ proc sql;
 			group by a.usubjid
 			order by a.usubjid, a.ady;
 quit;
-options notes;
 
 /*General info about the data
-%libInfor;
+%LibInfor;
 */

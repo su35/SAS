@@ -13,12 +13,21 @@ run;
 * len: holding the max length of the  variable.
 * ********************************************************/
 proc fcmp outlib=pub.funcs.val; 
-	function get_vars_length(lib $, dataset $, query $) ;
-		rc = run_macro('get_vars_length', lib, dataset, query, len); 
-		if rc eq 0 then return (len);
-      	else return(.);
+	function nobs(lib $, dn $) ;
+		rc = run_macro('nobs', lib, dn, record); 
+		if rc eq 0 then return (record);
+      	else return(0);
 	endsub; 
 run; 
+/*macro var_length is defined in tools.sas*/
+proc fcmp outlib=pub.funcs.val; 
+	function var_length(lib $, dn $, var $) ;
+		rc = run_macro('var_length', lib, dn, var, len); 
+		if rc eq 0 then return (len);
+      	else return(0);
+	endsub; 
+run; 
+
 /* ******************************************************
 * check_missing call routine
 * call macro check_missing to count the missing value for the SDTM
@@ -62,19 +71,7 @@ proc fcmp outlib=pub.funcs.rep;
 
 run;
 
-/* ******************************************************
-* insert_excel call routine
-* call macro insert_excel to create a excel file or inset a sheet into an existed excel file
-* parameters
-* lib: specify the libaray
-* dataset: the name of the original dataset; character
-* file: the name of the excel file
-* ********************************************************/
-proc fcmp outlib=pub.funcs.crt;
-	subroutine insert_excel(lib $, dataset $); 
-		rc = run_macro('insert_excel', lib, dataset);
-	endsub;
-run;
+
 /*Proc fcmp does not support 'optional' arguments. so there is no default value for base. pass '.' for no specific date*/
 proc fcmp outlib=pub.funcs.cdate;
 	function createdate(base);
