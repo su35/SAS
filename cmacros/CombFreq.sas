@@ -1,11 +1,12 @@
 /* ******************************************************************************
-* 
+*  
 * ******************************************************************************/
 %macro CombFreq(dn, outdn);
-	%if %superq(dn)=  or %superq(outdn)=  %then %do;
-			%put ERROR: params are input dataset, output dataset;
+	%if %superq(dn)=  %then %do;
+			%put ERROR: == The dataset which hold the freq output is required;
 			%return;
 		%end;
+	%if %superq(outdn)= %then %let outdn=&dn;
 	%local i vlen lib point dn_t;
 	%let point=%index(&dn, .);
 	%if &point %then %do;
@@ -13,25 +14,23 @@
 		%let dn_t=%substr(&dn, %eval(&point+1) );
 	%end;
 	%else %do;
-		%let lib=work;
+		%let lib=&pname;
 		%let dn_t=&dn;
 	%end;
 	proc sql noprint;
 		select max(length) into :vlen
-		from dictionary.columns where libname="ORI" and type="char";
+		from dictionary.columns 
+		where libname=upcase("&lib") and memname=upcase("&dn_t")
+				and name like "F_%";
 	quit;
 
 	data &outdn;
 		length variable $32  %if %superq(vlen)^= %then value $&vlen; ;
 		set &dn;
 		variable=substr(table, 7);
-		array chars(*) $ F_:;
-		do i=1 to dim(chars);
-			if not missing(chars[i]) and  chars[i] ne '.' then missing=0;
-		end;
-		%if  %superq(vlen)^=  %then value=strip(cats(of F_:))%str(;) ;
-		%else value=sum(of F_:)%str(;) ; 
-		if missing(missing) then missing=1;
+		value=strip(cats(of F_:));
+		if missing(value) or value="." then missing=1;
+		else missing=0;
 		keep variable missing value frequency percent;
 	run;
 %mend CombFreq;	

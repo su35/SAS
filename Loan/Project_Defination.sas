@@ -1,4 +1,4 @@
-﻿/* *************************************************
+/* *************************************************
 * project _defination.sas
 * define project global macro variables
 * declare library, user folder and system options
@@ -17,9 +17,9 @@
 /*define the project folder*/
 %let pdir=&proot.&pname.\;
 
-/*create the folder libori and lib, if they are not existed*/
+/*create the folders, if they are not existed*/
 data _null_;
-	if fileexist("&pdir.libori") =0 then NewDir=dcreate("libori","&pdir");
+	if fileexist("&pdir.data")=0 then NewDir=dcreate("data","&pdir");
 	if fileexist("&pdir.lib")=0 then NewDir=dcreate("lib","&pdir");
 	if fileexist("&pdir.libori")=0 then NewDir=dcreate("libori","&pdir");
 	if fileexist("&pdir.outfiles")=0 then NewDir=dcreate("outfiles","&pdir");
@@ -47,13 +47,14 @@ options datastmtchk =corekeywords;
 filename cmacros "&proot.cmacros";
 filename pmacro "&pdir.pmacro";
 options mautosource sasautos=(sasautos cmacros pmacro);
+*options mstored sasmstore=&pname;
 %include "&proot.cmacros\tools.sas";
 /*define the format search order*/
 options fmtsearch= (&pname library);
 /*merge statement must be accompanied with by statement*/
 options mergenoby = error;
 
-options xsync noxwait ;
+options noxwait ;
 %symdel fullpath;
 /*copy the vardefine.csv to data folder. this command would be run once only*/
 *X "copy &proot.pub\vardefine.csv &pdir.vardefine.csv";

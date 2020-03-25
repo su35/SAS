@@ -14,7 +14,7 @@
 		libname &standard.file "&pdir.&standard._METADATA.xlsx";;
 
 	options nonotes;
-	/* make a proc format control dataset out of the SDTM metadata;*/
+	/* make a proc format control dataset out of the SDTM or ADaM metadata;*/
 	options varlenchk=nowarn;
 	data formatdata;
 		length fmtname $ 32 start end $ 16 label $ 200 type $ 1;
@@ -38,7 +38,7 @@
 		    type = "C";
 	run;
 
-	/* create a SAS format library to be used in SDTM conversions;*/
+	/* create a SAS format library to be used in SDTM or ADaM conversions;*/
 	proc format
 	    library=library
 	    cntlin=formatdata

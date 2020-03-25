@@ -1,7 +1,7 @@
-/* ****************************************************************************
+﻿/* ****************************************************************************
  * macro ReadData.sas: read the data stored in local external files
  * option minoperator: make the in() operator is available in macro, 
- * parameters
+ * parameters 
  * path: the folder where the data is stored. default is the data folder.
  * lib: the library where the dataset would be stored.default is ori.
  * ext: specify the file type(extention name) in which the data would be input.
@@ -55,8 +55,8 @@
 
 	%if &position > 33 %then
 		%do;
+			%put WARNING- The length of the file &name is over 32 and has been truncated to 32;
 			%let name=%substr(&name, 1 , 32);
-			%put WARNING- The length of the file name is over 32 and has been truncated to 32;
 		%end;
 
 	%if %superq(ext) ne and %superq(oriname) eq %then

@@ -1,4 +1,4 @@
-﻿/* *********************************************************************
+/* *********************************************************************
 * macro VarExplor: 
 * Create vars data set to collecte the characteristic of the variables
 * dn: The data set used to analyse or modeling. It is required.
@@ -16,106 +16,175 @@
 		%put ERROR: ======= The input dataset is missing ======;
 		%return;
 	%end;
-	%local  vd_freqlist i vd_size vd_excp_class;
-	/*to void a huge out put, close the notes, html, and listing */
-	options nonotes;
-	ods select none;
+	%local  vd_freqlist i vd_size vd_excp_class pctoutl pctoutu fclist keeplist mlen;
+	/*to void a unnecessary out put, close the notes, html, and listing */
+	options nonotes  varlenchk=nowarn;
+
 	/*if the variable define dataset is available, get the required params that were not assinged*/
 	%if %superq(vardefine)^= %then %do;
 		proc sql noprint;
 			%if %superq(target)= %then %do;
-				select distinct variable into :target
-				from &vardefine where target=1;
+				select distinct variable into :target trimmed
+				from &vardefine where target not is missing;
 			%end;
 			%if %superq(id)= %then %do;
-				select distinct variable into :id
-				from &vardefine where id=1;
+				select distinct variable into :id trimmed
+				from &vardefine where id not is missing;
 			%end;
-			%if %superq(exclu)= %then %do;
-				select distinct variable into :exclu separated by " "
-				from &vardefine where exclude=1 or id=1 or target=1;
-			%end;
+
+			select distinct variable into :keeplist  separated by " "
+			from &vardefine 
+			where exclude is missing and variable not in (
+										%if %superq(exclu) ^= %then %strtran(exclu) &exclu;
+										%if %superq(id) ^= %then "&id";
+					);
+
 			%if %superq(interval)= %then %do;
-				select distinct variable into :interval separated by " "
+				select distinct variable into :interval  separated by " "
 				from &vardefine 
-				where class="interval" and target^=1 and exclude^=1;
+				where class="interval" and variable ^="&target" and exclude is missing;
 			%end;
 			%if %superq(ordinal)= %then %do;
-				select distinct variable into :ordinal separated by " "
+				select distinct variable into :ordinal  separated by " "
 				from &vardefine 
-				where class="ordinal" and target^=1 and exclude^=1;
+				where class="ordinal" and variable ^="&target" and exclude is missing;
 			%end;
+
 			%if %sysfunc(exist(&outdn)) %then drop table &outdn; ;
 		quit;
-		proc sort data=&vardefine out=work.&vardefine;
+		
+		proc sort data=&vardefine out=work.ve_&vardefine;
 			by vid;
 		run;
-		data work.&vardefine;
-			set work.&vardefine;
+
+		data work.ve_&vardefine;
+			set work.ve_&vardefine;
 			by vid;
 			if first.vid then output;
 		run;
 	%end;
 	%else %if %superq(interval)= %then %do;
-		 %if %superq(ordinal)^= %then %StrTran(ordinal);
 		proc sql noprint;
-			select name into :interval separated by " "
+			select name into :interval  separated by " "
 			from dictionary.columns
 			where libname="%upcase(&lib)" and memname="%upcase(&dn)" and type="num" 
-			%if %superq(ordinal)^= %then and upcase(name) not in %upcase(&ordinal);
-			%if %superq(exclu)^= %then and upcase(name) not in %upcase(&exclu);
-			;
+			and upcase(name) not in (
+			%if %superq(ordinal)^= %then 
+				%StrTran(ordinal) %upcase(&ordinal); %StrTran(ordinal)
+			%if %superq(exclu)^= %then 
+				%StrTran(exclu) %upcase(&exclu); %StrTran(exclu)
+			%if %superq(target)^= %then "%upcase(&target)"; 
+			%if %superq(id)^= %then "%upcase(&id)"; 
+			);
 		quit;
-		 %if %superq(ordinal)^= %then %StrTran(ordinal);
-		 /*exclu should include target and id*/
-		%if %superq(exclu)^= or %superq(target)^= or %superq(id)^= %then %do;
-			%if %index(&exclu, &target)=0 %then %let exclu=&exclu &target;
-			%if %index(&exclu, &id)=0 %then %let exclu=&exclu &id;
-		%end;
 	%end;
 
 	%if %superq(interval)^=  %then %interval_stat();
-	/*the target will be included in nominal statistic, remove target from &exclu*/
-	%if %index(&exclu, &target)>0 %then %do;
-		%if %VarsCount(&exclu) >1 %then
-			%let exclu=%sysfunc(trim(%sysfunc(compbl(%sysfunc(tranwrd(&exclu, &target, %str()))))));
-		%else %let exclu=;
-	%end;
 	%nominal_stat()
+	/*get the mode. the mode may has more than one value*/
 	proc sql;
+		create table work.ve_tmp as
+		select distinct variable, value , frequency 
+		from freq where value not is missing and value	^="." 
+		group by variable 
+		having frequency=max(frequency)
+		order by variable;
+	quit;
+
+	data work.ve_tmp;
+		set work.ve_tmp;
+		by variable;
+		length mode $200;
+		retain mode;
+		if first.variable then mode=" ";
+		mode=catx(",",mode,value);
+		if last.variable then output;
+	run;
+
+	/*Create the output dataset*/
+	proc sql noprint;
+		select max(lengthn(mode)) into :mlen
+		from work.ve_tmp;
+
+		alter table work.ve_tmp modify mode char(&mlen);
+
 		create table &outdn as
-			select a.variable, c.type label="Type", 
-			%if %superq(vardefine)^= %then  d.class, d.description, ;
+			select a.name as variable, a.type label="Type", 
+			%if %superq(vardefine)^= %then  e.class, e.description, ;
 			%else "" as class, ;
-			a.n, a.nlevels, 
-			case when missing(b.nmissing) then 0 else b.nmissing end as nmissing, 
-			case when missing(b.pctmissing) then 0.00 else b.pctmissing end as pctmissing 
-			from (select distinct variable, sum(case when missing=0 then frequency else 0 end) as n, nLevels
-				from freq group by variable) as a left join
-				(select	distinct variable, frequency  as nmissing, percent as pctmissing
-				from freq where missing=1) as b on a.variable=b.variable left join
-				(select distinct name, type from dictionary.columns
-				where libname=upcase("&lib") and memname=upcase("&dn")) as c 
-				on c.name=a.variable
+			b.n, b.nlevels, mode, d.frequency as mode_n,
+			ifn(missing(c.nmissing), 0, c.nmissing) as nmissing, 
+			ifn(missing(c.pctmissing), 0.00, c.pctmissing) as pctmissing 
+			from 
+			(select distinct name, type from dictionary.columns
+				where libname=upcase("&lib") and memname=upcase("&dn")
+				%if %superq(vardefine)^= %then and name in (select variable from &vardefine);
+				) as a left join
+				(select distinct variable, sum(ifn(missing=0, frequency, 0)) as n, nLevels
+				from freq group by variable) as b on a.name=b.variable left join
+				(select	distinct variable, frequency  as nmissing, round(percent, 2) as pctmissing
+				from freq where missing=1) as c on b.variable=c.variable left join
+				(select variable, mode, frequency from work.ve_tmp) as d on d.variable=a.name
 				%if %superq(vardefine)^= %then left join (select distinct variable, class, description
-				from work.&vardefine) as d on d.variable=a.variable ;
+				from work.ve_&vardefine) as e on e.variable=a.name ;
 			;
 	quit;
 	%if %superq(interval)^=  %then %do;	
 		proc sort data=&outdn ;
 			by variable;
 		run;
-		proc sort data=work.tmp_utable;
+		proc sort data=work.ve_utable;
 			by variable;
 		run;
-	%end;
+	/*comput the percent of outlier*/
 
+		proc sql noprint;
+			select variable, outlow, outup, n
+			into :vd_vname1-:vd_vname999, :vd_low1-:vd_low999, :vd_up1-:vd_up999, :vd_n1-:vd_n999
+			from work.ve_utable
+			where not missing(outlow) or not missing(outup);
+		
+			%if &sqlobs>0 %then %do;
+				%let vd_size=&sqlobs;
+				create table work.ve_pctout 
+					(variable char(32), pctoutl num(8), pctoutu num(8));
+				%do i=1 %to &vd_size;
+					%if "&&vd_low&i" ne "." %then %do;
+						select round(count(&&vd_vname&i)/&&vd_n&i*100,0.01) 
+						into :pctoutl
+						from &dn
+						where &&vd_vname&i<&&vd_low&i;
+					%end;
+					%else %let pctoutl=.;
+					%if "&&vd_up&i" ne "." %then %do;
+						select round(count(&&vd_vname&i)/&&vd_n&i*100,0.01) 
+						into :pctoutu
+						from &dn
+						where &&vd_vname&i>&&vd_up&i;
+					%end;
+					%else %let pctoutu=.;
+					insert into work.ve_pctout
+					set variable="&&vd_vname&i", pctoutl=&pctoutl, pctoutu=&pctoutu; 
+				%end;
+			%end;
+		quit;
+		%if %sysfunc(exist(work.ve_pctout)) %then %do;
+			proc sort data=work.ve_pctout;
+				by variable;
+			run;
+			data work.ve_utable;
+				length variable $ 32;
+				merge work.ve_utable work.ve_pctout;
+				by variable;
+			run;
+		%end;
+	%end;
 	options noquotelenmax;
 	data  &outdn;
-		retain variable type class normal n nlevels nmissing pctmissing derive_var excluded target id description;
-		length class $8 derive_var excluded target id 3;
+		retain variable type class normal n nlevels nmissing pctmissing derive_var exclude target id mode description;
+		length variable $ 32 class $8 derive_var exclude target id 8;
 		%if %superq(interval)^= %then %do;
-			merge &outdn work.tmp_utable;
+			merge &outdn work.ve_utable;
 			by variable;
 		%end;
 		%else set  &outdn  %str(;); 
@@ -143,76 +212,48 @@
 		%if %superq(target) ne %then %do;
 			if upcase(variable)=upcase("&target") then do; 
 				target=1; 
-				excluded=1;
+				exclude=1;
 			end;
 			else do;
 				target=.;
-				excluded=.;
+				exclude=.;
 			end;
 		%end;
+		%if %superq(id) ne %then %do;
+			if upcase(variable)=upcase("&id") then do; 
+				id=1; 
+				exclude=1;
+			end;
+			else do;
+				id=.;
+				exclude=.;
+			end;
+		%end;
+
+		/*nelevels=0 means there is missing only.
+		   if nelevels=1and missing <5, then missing value couldn't be conside as one class*/
+		if nlevels<1 or (nlevels=1 and pctmissing<5) then exclude=1;
 	run;
-	/*add the excluded variables, &exclu include id, but exclude target*/
-	%if %superq(exclu)^= %then %do;
-		%let exnum=%VarsCount(&exclu);
-		proc sql noprint;
-			%do i=1 %to &exnum;
-				insert into &outdn set variable="%scan(&exclu, &i, %str( ))", excluded=1;
-			%end;
-		quit;
-	%end;
+
+	proc sql;
+		update &outdn set exclude=1
+		where variable in (select variable from 
+				(select distinct variable, max(percent) as maxperc 
+				from freq
+				group by variable having maxperc>95));
+	quit;
+
+	proc sort data=&outdn;
+		by type class;
+	run;
 
 	options quotelenmax;
-	/*comput the percent of outlier*/
-	%if %superq(interval)^= %then %do;
-		proc sql noprint;
-			select variable, outlow, outup, n
-			into :vd_vname1-:vd_vname999, :vd_low1-:vd_low999, :vd_up1-:vd_up999, :vd_n1-:vd_n999
-			from &outdn
-			where not missing(outlow) or not missing(outup);
-		
-			%if &sqlobs>0 %then %do;
-				%let vd_size=&sqlobs;
-				create table work.tmp_pctout 
-					(variable char(32), pctoutl num(8), pctoutu num(8));
-				%do i=1 %to &vd_size;
-					insert into work.tmp_pctout
-					select distinct "&&vd_vname&i" as variable, 
-						case when &&vd_low&i ne . then round(count(&&vd_vname&i)/&&vd_n&i*100,0.01) 
-							else . end as pctoutl,
-						case when &&vd_up&i ne . then round(count(&&vd_vname&i)/&&vd_n&i*100,0.01) 
-							else . end as pctoutu
-					from &dn 
-					where &&vd_vname&i<&&vd_low&i or &&vd_vname&i>&&vd_up&i;
-				%end;
-				proc sort data=&outdn;
-					by variable;
-				run;
-				proc sort data=work.tmp_pctout;
-					by variable;
-				run;
-				data &outdn &outdn._o;
-					merge &outdn work.tmp_pctout;
-					by variable;
-				run;
-			%end;
-		quit;
-	%end;
 
-	data work.tmp_outlier;
-		set &outdn;
-		where not missing(outlow) or not missing(outup);
-		drop type class normal target excluded;
-	run;
-	data outlier;
-		set %if %sysfunc(exist(outlier)) %then outlier;
-			work.tmp_outlier;
-	run;
-	ods select ALL;
 	proc sql ;
-		title1 "The value level of the following continual variables is less then 10.";
+		title1 "The value level of the following continual variables, if any, is less then 10.";
 		select quote(trim(variable)) into :vd_excp_class separated by " "
 		from &outdn
-		where class="interval" and nlevels<=10;
+		where class="interval" and nlevels<=10 and exclude is missing;
 
 		%if %superq(vd_excp_class)^= %then %do;
 		title1 "The 'CLASS' of the following variables may need to set ORDINAL.";
@@ -224,6 +265,12 @@
 		title1;
 		title2;
 	quit;
+
+	proc datasets lib=work noprint;
+	   delete ve_: tmp;
+	run;
+	quit;
+	options varlenchk=warn;
 	options notes;
 	%put  NOTE:  ==The dataset vars, Freq and outlier were created.==;
 	%put  NOTE:  ==The macro VarExplor executed completed. ==;
@@ -236,81 +283,60 @@
 		call symputx("is_nobs", obs);
 		stop;
 	run;
-
-	/* for large dataset, create a subset to test the normal*/
-	%if &is_nobs>2000 %then %do;
-		proc surveyselect data=&dn out=work.&dn._nor seed=1234 method=SRS n=1000 noprint;
-		run;
-	%end;
 	
-	proc univariate data=&dn 
-		%if %superq(exclu) ne %then (drop=&exclu);
-		%if %sysfunc(exist(work.&dn._nor))=0 %then normal;
-			noprint outtable=work.tmp_utable (keep=_var_  _q1_  _q3_  _qrange_ _min_ _mean_ 
-							_median_ _max_ _nobs_  _nmiss_ 
-			%if %sysfunc(exist(work.&dn._nor))=0 %then _probn_;
+	proc univariate data=&dn (
+			%if %superq(keeplist) ne %then keep=&keeplist;
+			%else %do;
+				drop=
+				%if %superq(exclu)  ne  %then &exclu;
+				%if %superq(id)  ne  %then &id; 
+			%end;
+			)
+		normal noprint outtable=work.ve_utable (keep=_var_  _q1_  _q3_  _qrange_ _min_ _mean_ 
+					_median_ _max_ _nobs_  _nmiss_ 
 			rename=(_var_=variable  _q1_=q1 _q3_=q3 _qrange_=qrange _min_=min _max_=max
-							_mean_=mean _median_=median  _nobs_=n  _nmiss_ =nmissing
-			%if %sysfunc(exist(work.&dn._nor))=0 %then _probn_ =pvalue;
-			));
+					_mean_=mean _median_=median  _nobs_=n  _nmiss_ =nmissing) );
 		var &interval;
-		%if %sysfunc(exist(work.&dn._nor))=0 %then %do;
-			histogram &interval / normal;
-		%end;
+		histogram &interval / normal;
 	run;
-	%if %sysfunc(exist(work.&dn._nor)) %then %do;
-		proc univariate data=work.&dn._nor 
-			%if  %superq(exclu) ne %then (drop=&exclu);
-			normal noprint outtable=work.tmp_npvalue (keep=_var_   _probn_
-				rename=(_var_=variable   _probn_ =pvalue));
-			var &interval;
-			 histogram &interval / normal;
-		run;
-		proc sort data=work.tmp_utable;
-			by variable;
-		run;
-		proc sort data=work.tmp_npvalue;
-			by variable;
-		run;
-		data work.tmp_utable;
-			merge work.tmp_utable work.tmp_npvalue ;
-			by variable;
-		run;
-	%end;
 
-	data work.tmp_utable;
-		set work.tmp_utable;
+	data work.ve_utable;
+		set work.ve_utable;
 		type="num";
 		pctmissing=round((nmissing/&is_nobs)*100, 0.01);
 		if q1-1.5*qrange > min then outlow=q1-1.5*qrange;
 		if q3+1.5*qrange <max then outup=q3+1.5*qrange;
-		if not missing(pvalue) then do;
-			if round(pvalue, .00001)>0.05 then normal=1;
-			else normal="0";
-		end;
-		drop pvalue;
+		else normal=.;
 	run;
 %mend interval_stat;
 
 %macro nominal_stat();
-*	ods graphics on;
-	ods output OneWayFreqs=work.tmp_freq NLevels=work.tmp_level(rename=(tablevar=variable));
-	proc freq data=&dn %if %superq(exclu)  ne  %then (drop=&exclu); nlevels;
+	ods select none;
+	ods output OneWayFreqs=work.ve_freq NLevels=work.ve_level(rename=(tablevar=variable));
+	proc freq data=&dn (
+			%if %superq(keeplist) ne %then keep=&keeplist;
+			%else %do;
+				drop=
+				%if %superq(exclu)  ne  %then &exclu;
+				%if %superq(id)  ne  %then &id; 
+			%end;
+				) nlevels;
 		table _all_  /missing nocum /*plots=freqplot*/;
 	run;
 	ods output close;
-*	ods graphics off;
-	%CombFreq(work.tmp_freq, work.tmp)
-	proc sort data=work.tmp;
+	ods select all;
+
+	%CombFreq(work.ve_freq)
+
+	proc sort data=work.ve_freq;
 		by variable;
 	run;
-	proc sort data=work.tmp_level;
+	proc sort data=work.ve_level;
 		by variable;
 	run;
-	data freq outlier;
-		merge work.tmp work.tmp_level;
+	data freq;
+		length variable $ 32 missing 8;
+		merge work.ve_freq work.ve_level;
 		by variable;
-		output freq;
-		if percent<10/nlevels then output outlier;
 	run;
 %mend nominal_stat;

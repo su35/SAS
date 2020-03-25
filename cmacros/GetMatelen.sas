@@ -12,28 +12,36 @@
 	%end;
 	%if %superq(dataset) ne %then  %StrTran(dataset);
 	%if %superq(file)= %then %let file =&pout.&lib._matelen.xlsx;
+	%local i mem;
 	options nonotes;
-	proc sql;
-		create table work._tmp as
+	proc sql noprint;
+		create table work.gm_tmp as
 		select memname, name, type, length, format   
 		from dictionary.columns 
 		where libname="%upcase(&lib)" 
 			%if %superq(dataset) ne %then and memname in (%upcase(&dataset));
 		order by memname;
-		select distinct memname into :mem1-:mem999
-		from work._tmp;
+
+		select distinct memname into :memlist separated by " ";
+		from work.gm_tmp;
 	quit;
 	%let mnum=&sqlobs;
 
 	%do i=1 %to &mnum;
-		data work._tmpm;
-			set work._tmp;
-			where memname="&&mem&i";
+		%let mem=%scan(&memlist, &i, %str( ))
+		data work.gm_tmpm;
+			set work.gm_tmp;
+			where memname="&mem";
 		run;
-		proc export data=work._tmpm outfile="&file" DBMS=xlsx replace;
-			sheet="&&mem&i";
+		proc export data=work.gm_tmpm outfile="&file" DBMS=xlsx replace;
+			sheet="&mem";
 		run;
 	%end;
+	proc datasets lib=work noprint;
+	   delete gm_: ;
+	run;
+	quit;
+
 	options notes;
 	%put NOTE: == The &file created. ==;
 	%put NOTE: == Macro GetMatelen runing completed. ==;

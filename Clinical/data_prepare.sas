@@ -7,7 +7,7 @@
 * Read data from local raw files in ori, and remove the format, informat, and label
 * *************************************************************************************/
 %ReadData();
-%RemoveAttrib(lib=ori);
+%RemoveAttr(lib=ori);
 
 /*get the length of the character varibles in original dataset, and stored
 in ori_matelen.xml. This data would be helpful when defining the variable 
@@ -18,7 +18,8 @@ length in sdtm_metadata.xlsx*/
 %SetUsubjid(length=25);
 
 /*since the data de-identification,  the date of randomization = day 0. 
-for practice reason, create a random date as a subject's ramdomizqtion date*/
+for practice reason, create a random date as a subject's ramdomizqtion date
+The createdate() is a customer function*/
 data random;
 	set ori.random;
 	length rand_date 8;
@@ -32,6 +33,7 @@ run;
 /* ****************************************
 * Prepare ADTM dataset
 * ****************************************/
+/*The sdtm_metadata and adam_metadata are define basing on CDISC standard and CRF*/
 libname sdtmfile  "&pdir.sdtm_metadata.xlsx";
 /*creates a permanent SAS format library from the codelist metadata spreadsheet*/
 %MakeFormats(SDTM)

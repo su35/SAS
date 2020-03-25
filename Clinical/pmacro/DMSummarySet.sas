@@ -22,8 +22,8 @@
 	options nonotes;
 
 	/*count the variable number and required statistic number*/
-	%let varnum = %VarsCount(&varlist);
-	%let stanum = %VarsCount(&analylist);
+	%let varnum = %ElemCount(&varlist);
+	%let stanum = %ElemCount(&analylist);
 	%do i=1 %to &stanum;
 		%let staname=%scan(&analylist, &i);
 		%let stalist=&stalist &staname=&staname;

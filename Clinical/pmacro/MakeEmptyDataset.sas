@@ -24,7 +24,7 @@
 		quit;
 	%end;
 	%else %let dmnum=1;
-
+	%local i j ;
 	options nonotes;
 
 	%do j = 1 %to &dmnum;
