@@ -19,18 +19,19 @@
 
 /*create the folders, if they are not existed*/
 data _null_;
-	if fileexist("&pdir.data")=0 then NewDir=dcreate("data","&pdir");
-	if fileexist("&pdir.lib")=0 then NewDir=dcreate("lib","&pdir");
-	if fileexist("&pdir.libori")=0 then NewDir=dcreate("libori","&pdir");
-	if fileexist("&pdir.outfiles")=0 then NewDir=dcreate("outfiles","&pdir");
-	if fileexist("&pdir.pmacro")=0 then NewDir=dcreate("pmacro","&pdir");
+   if fileexist("&pdir.data")=0 then NewDir=dcreate("data","&pdir");
+   if fileexist("&pdir.lib")=0 then NewDir=dcreate("lib","&pdir");
+   if fileexist("&pdir.libori")=0 then NewDir=dcreate("libori","&pdir");
+   if fileexist("&pdir.outfiles")=0 then NewDir=dcreate("outfiles","&pdir");
+   if fileexist("&pdir.pmacro")=0 then NewDir=dcreate("pmacro","&pdir");
+   if fileexist("&pdir.funcs")=0 then NewDir=dcreate("funcs","&pdir");
 run; 
 /*define the project out put file folder*/
 %let pout=&pdir.outfiles\;
 
 /* pub: self-defined macro, subroutine and function
-	ori: original dataset that input from data
-	plib: project lib*/
+   ori: original dataset that input from data
+   plib: project lib*/
 libname pub "&proot.pub";
 libname ori  "&pdir.libori";
 libname &pname  "&pdir.lib";
@@ -39,7 +40,7 @@ without having to specify FMTSEARCH explicitly in the OPTIONS statement.*/
 libname library "&pdir.lib"; 
 
 options user= &pname;
-options cmplib = pub.funcs; 
+options cmplib =(pub.funcs &pname..funcs); 
 /*protect against overwriting the input data sets */
 options datastmtchk =corekeywords;
 

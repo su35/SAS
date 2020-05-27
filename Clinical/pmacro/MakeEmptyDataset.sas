@@ -12,76 +12,72 @@
 * dataset = the dataset or domain name you want to extract
 *---------------------------------------------------------------*;
 %macro MakeEmptyDataset(standard, dataset=)/minoperator;
-	%local i j;
-	%if %sysfunc(libref(&standard.file)) ne 0 %then  
-		libname &standard.file "&pdir.&standard._METADATA.xlsx";;
+    %local i j dmlist dmnum;
+    options nonotes;
 
-	%if %superq(dataset)=  %then %do;
-		proc sql noprint;
-			select distinct domain, count(distinct domain)
-				into :dmlist separated " ", :dmnum
-				from &standard.file."VARIABLE_METADATA$"n;
-		quit;
-	%end;
-	%else %let dmnum=1;
-	%local i j ;
-	options nonotes;
+    %if %sysfunc(libref(&standard.file)) ne 0 %then  
+        libname &standard.file "&pdir.&standard._METADATA.xlsx";;
 
-	%do j = 1 %to &dmnum;
-		%if &dmnum > 1  %then %let dataset = %scan(&dmlist, &j, ' ' ); 
-		** sort the dataset by expected specified variable order;
-		proc sort 	data=&standard.file."VARIABLE_METADATA$"n out=work._settemp;
-			where domain = upcase("&dataset");
-			by varnum;	  
-		run;
-	** create keeplist macro variable and load metadata 
-	** information into macro variables;
-		%global &dataset.keeplist;
-		data _null_;
-			set work._settemp nobs=nobs end=eof;
-			length format $ 20.;
-			if _n_=1 then
-			call symput("vars", compress(put(nobs,3.)));
+    %if %superq(dataset)=  %then %do;
+        proc sql noprint;
+            select distinct domain
+                into :dmlist separated " "
+                from &standard.file."VARIABLE_METADATA$"n
+                where domain is not missing;
+        quit;
+        %let  dmnum = &sqlobs;
+    %end;
+    %else %let dmnum=1;
 
-			call symputx('var'    || compress(put(_n_, 3.)), variable);
-			call symputx('label'  || compress(put(_n_, 3.)), label);
-			call symputx('length' || compress(put(_n_, 3.)), put(length, 3.));
+    %do j = 1 %to &dmnum;
+        %if &dmnum > 1  %then %let dataset = %scan(&dmlist, &j, ' ' ); 
+        ** sort the dataset by expected specified variable order;
+        proc sort   data=&standard.file."VARIABLE_METADATA$"n out=work._settemp;
+            where domain = upcase("&dataset");
+            by varnum;    
+        run;
+        ** create keeplist macro variable and load metadata 
+        ** information into macro variables;
+        %global &dataset.keeplist;
+        data _null_;
+            set work._settemp nobs=nobs end=eof;
+            length format $ 20.;
+            if _n_=1 then
+            call symput("vars", cats(nobs));
 
-			** valid ODM types include TEXT, INTEGER, FLOAT, DATETIME, 
-			** DATE, TIME and map to SAS numeric or character;
-			if upcase(type) in ("INTEGER", "FLOAT") then
-			call symputx('type' || compress(put(_n_, 3.)), "");
-			else if upcase(type) in ("TEXT", "DATE", "DATETIME", "TIME", "CHAR") then
-			call symputx('type' || compress(put(_n_, 3.)), "$");
-			else
-			put "ERR" "OR: not using a valid ODM type.  " type=;
+            call symputx(cats('var', _n_), variable);
+            call symputx(cats('label',  _n_), label);
+            call symputx(cats('length', _n_), cats(length));
 
-			** create **keeplist macro variable;
-			length keeplist $ 32767;	 
-			retain keeplist;		
-			keeplist = compress(keeplist) || "|" || left(variable); 
-			if eof then
-			call symputx(upcase(compress("&dataset" || 'keeplist')), 
-			           left(trim(translate(keeplist," ","|"))));
-		run;
-		** create a 0-observation template data set used for assigning 
-		** variable attributes to the actual data sets;
-		data EMPTY_&dataset;
-			%do i=1 %to &vars;           
-				attrib &&var&i label="&&label&i"
-				%if "&&length&i" ne "" %then
-				length=&&type&i.&&length&i... ;
-				;
-				%if &&type&i=$ %then
-				retain &&var&i '';
-				%else
-				retain &&var&i .;
-				;
-			%end;
-			if 0;
-		run;
-	%end;
-	options notes;
-	%put NOTE:  ==The macro MakeEmptyDataset executed completed.== ;
-	%put NOTE:  ==The empty &standard dataset was created.==;
+            ** valid ODM types include TEXT, INTEGER, FLOAT, DATETIME, 
+            ** DATE, TIME and map to SAS numeric or character;
+            if upcase(type) in ("INTEGER", "FLOAT") then
+            call symputx(cats('type', _n_), "");
+            else if upcase(type) in ("TEXT", "DATE", "DATETIME", "TIME", "CHAR") then
+            call symputx(cats('type', _n_), "$");
+            else
+            put "ERR" "OR: not using a valid ODM type.  " type=;
+
+            ** create **keeplist macro variable;
+            length keeplist $ 32767;     
+            retain keeplist;        
+            keeplist = catx(' ', keeplist, variable); 
+            if eof then
+            call symputx("&dataset.keeplist", keeplist);
+        run;
+        ** create a 0-observation template data set used for assigning 
+        ** variable attributes to the actual data sets;
+        data EMPTY_&dataset;
+            %do i=1 %to &vars;           
+                attrib &&var&i label="&&label&i"
+                %if "&&length&i" ne "" %then
+                length=&&type&i.&&length&i... ;
+                ;
+            %end;
+            stop;
+        run;
+    %end;
+    options notes;
+    %put NOTE:  ==The macro MakeEmptyDataset executed completed.== ;
+    %put NOTE:  ==The empty &standard dataset was created.==;
 %mend MakeEmptyDataset;

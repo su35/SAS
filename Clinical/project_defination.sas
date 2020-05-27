@@ -1,4 +1,4 @@
-﻿/* *************************************************
+/* *************************************************
 * project _defination.sas
 * define project global macro variables
 * declare library, user folder and system options
@@ -19,18 +19,19 @@
 
 /*create the folder libori and lib, if they are not existed*/
 data _null_;
-	if fileexist("&pdir.libori") =0 then NewDir=dcreate("libori","&pdir");
-	if fileexist("&pdir.lib")=0 then NewDir=dcreate("lib","&pdir");
-	if fileexist("&pdir.libori")=0 then NewDir=dcreate("libori","&pdir");
-	if fileexist("&pdir.outfiles")=0 then NewDir=dcreate("outfiles","&pdir");
-	if fileexist("&pdir.pmacro")=0 then NewDir=dcreate("pmacro","&pdir");
+   if fileexist("&pdir.libori") =0 then NewDir=dcreate("libori","&pdir");
+   if fileexist("&pdir.lib")=0 then NewDir=dcreate("lib","&pdir");
+   if fileexist("&pdir.libori")=0 then NewDir=dcreate("libori","&pdir");
+   if fileexist("&pdir.outfiles")=0 then NewDir=dcreate("outfiles","&pdir");
+   if fileexist("&pdir.pmacro")=0 then NewDir=dcreate("pmacro","&pdir");
+*   if fileexist("&pdir.funcs")=0 then NewDir=dcreate("funcs","&pdir");
 run; 
 /*define the project out put file folder*/
 %let pout=&pdir.outfiles\;
 
 /* pub: self-defined macro, subroutine and function
-	ori: original dataset that input from data
-	plib: project lib*/
+   ori: original dataset that input from data
+   plib: project lib*/
 libname pub "&proot.pub";
 libname ori  "&pdir.libori";
 libname &pname  "&pdir.lib";
@@ -39,7 +40,7 @@ without having to specify FMTSEARCH explicitly in the OPTIONS statement.*/
 libname library "&pdir.lib"; 
 
 options user= &pname;
-options cmplib = pub.funcs; 
+options cmplib = (pub.funcs); 
 /*protect against overwriting the input data sets */
 options datastmtchk =corekeywords;
 
@@ -47,6 +48,7 @@ options datastmtchk =corekeywords;
 filename cmacros "&proot.cmacros";
 filename pmacro "&pdir.pmacro";
 options mautosource sasautos=(sasautos cmacros pmacro);
+*options mstored sasmstore=&pname;
 %include "&proot.cmacros\tools.sas";
 /*define the format search order*/
 options fmtsearch= (&pname library);

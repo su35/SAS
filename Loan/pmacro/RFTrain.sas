@@ -35,7 +35,7 @@
 							%else class;
 		into :target, :tlevel
 		from &pdn
-		where target=1;
+		where target not is missing;
 	quit;
 
 	data RFVarImportn;

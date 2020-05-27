@@ -20,7 +20,7 @@
 							other="Nonmissing";
 	run;
 	ods output OneWayFreqs = work.mc_freq;
-	proc freq data=&dn %if %superq(drop)^= %then (drop=&drop); %str(;)
+	proc freq data=&dn %if %superq(drop) ne %then (drop=&drop); %str(;)
 		 tables _all_ / nocum missing;
 		 format _character_   $cmisscnt. _numeric_ nmisscnt. ;
 	run;

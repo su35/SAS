@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------*;
+/*---------------------------------------------------------------*;
 * %make_define creates the define.xml file for the SDTM and ADaM.  
 * It creates define.xml based on the contents of a set of metadata
 * tabs found in an Excel spreadsheet.
@@ -24,7 +24,7 @@
 
 **** GET DEFINE FILE HEADER INFORMATION METADATA;
 proc import 
-    out = _define_header
+    out = work.md_define_header
     datafile = "&metadata" 
     dbms=excelcs 
     replace;
@@ -33,20 +33,20 @@ run;
 
 **** DETERMINE IF THIS IS A SDTM DEFINE FILE OR AN ADAM DEFINE FILE
 **** AND SET THE STANDARD MACRO VARIABLE FOR THE REST OF THE PROGRAM;
-data _null_;
-	set _define_header;
-
-    if upcase(standard) = 'ADAM-IG' then
-        call symput('standard','ADAM');
-    else if upcase(standard) = 'SDTM-IG' then
-        call symput('standard','SDTM');
-    else
-        put "ERR" "OR: CDISC standard undefined in define_header_metadata";
-run;
+/*data _null_;*/
+/*    set work.md_define_header;*/
+/**/
+/*    if upcase(standard) = 'ADAM-IG' then*/
+/*        call symput('standard','ADAM');*/
+/*    else if upcase(standard) = 'SDTM-IG' then*/
+/*        call symput('standard','SDTM');*/
+/*    else*/
+/*        put "ERR" "OR: CDISC standard undefined in define_header_metadata";*/
+/*run;*/
 
 **** GET "TABLE OF CONTENTS" LEVEL DATASET METADATA;
 proc import 
-    out = _toc_metadata
+    out = work.md_toc_metadata
     datafile = "&metadata" 
     dbms=excelcs 
     replace;
@@ -55,7 +55,7 @@ run;
 
 **** GET THE VARIABLE METADATA;
 proc import 
-    out = _VARIABLE_METADATA
+    out = work.md_VARIABLE_METADATA
     datafile = "&metadata"
     dbms=excelcs
     replace;
@@ -64,7 +64,7 @@ run;
 
 **** GET THE CODELIST METADATA;
 proc import 
-    out = _codelists
+    out = work.md_codelists
     datafile = "&metadata" 
     dbms=excelcs
     replace;
@@ -73,7 +73,7 @@ run;
 
 **** GET THE COMPUTATIONAL METHOD METADATA;
 proc import 
-    out = _compmethod
+    out = work.md_compmethod
     datafile = "&metadata" 
     dbms=excelcs
     replace;
@@ -82,7 +82,7 @@ run;
 
 **** GET THE VALUE LEVEL METADATA;
 proc import 
-    out = _valuelevel
+    out = work.md_valuelevel
     datafile = "&metadata" 
     dbms=excelcs
     replace;
@@ -91,7 +91,7 @@ run;
 
 **** GET THE WHERE CLAUSE METADATA;
 proc import 
-    out = _whereclause
+    out = work.md_whereclause
     datafile = "&metadata" 
     dbms=excelcs
     replace;
@@ -100,7 +100,7 @@ run;
 
 **** GET THE METADATA COMMENTS;
 proc import 
-    out = _comments
+    out = work.md_comments
     datafile = "&metadata" 
     dbms=excelcs
     replace;
@@ -109,7 +109,7 @@ run;
 
 **** GET THE External Link Information;
 proc import 
-    out = _externallinks
+    out = work.md_externallinks
     datafile = "&metadata" 
     dbms=excelcs
     replace;
@@ -120,7 +120,7 @@ run;
   %do;
     **** GET THE ANALYSIS RESULTS METADATA;
     proc import 
-        out = _analysisresults
+        out = work.md_analysisresults
         datafile = "&metadata" 
         dbms=excelcs
         replace;
@@ -130,13 +130,13 @@ run;
   %end;
 
 
-**** USE HTMLENCODE ON SOURCE TEXT THAT NEEDS ENCODING FOR PROPER BROWSER REPRESENTATIION;
+**** use htmlencode on source text that needs encoding for proper browser representatiion;
 %if &standard=ADAM %then
   %do;
   
-    data _toc_metadata;
-      	length documentation $ 800;
-            set _toc_metadata;
+    data work.md_toc_metadata;
+        length documentation $ 800;
+            set work.md_toc_metadata;
       
           documentation = htmlencode(documentation);
           ** convert single quotes to double quotes;
@@ -149,63 +149,63 @@ run;
   %end;
   
         
-data _VARIABLE_METADATA;
+data work.md_VARIABLE_METADATA;
   length comment $ 2000;
-  set _VARIABLE_METADATA;
+  set work.md_VARIABLE_METADATA;
 
-	format comment;
-	informat comment;	
+    format comment;
+    informat comment;   
         origin = htmlencode(origin); 
-	label = htmlencode(label); 
-	comment = htmlencode(comment); 
+    label = htmlencode(label); 
+    comment = htmlencode(comment); 
 
         **** FOR ADAM, JOIN ORIGIN/"SOURCE" AND COMMENT
-	**** TO FORM "SOURCE/DERIVATION" METADATA;
-	if "&standard" = "ADAM" and origin ne '' and comment ne '' then 
+    **** TO FORM "SOURCE/DERIVATION" METADATA;
+    if "&standard" = "ADAM" and origin ne '' and comment ne '' then 
           comment = "SOURCE: " || left(trim(origin)) ||
                     " DERIVATION: " || left(trim(comment)); 
-	else if "&standard" = "ADAM" and origin ne '' and 
+    else if "&standard" = "ADAM" and origin ne '' and 
         comment = '' then 
           comment = "SOURCE: " || left(trim(origin)); 
-	if "&standard" = "ADAM" and origin = '' and 
+    if "&standard" = "ADAM" and origin = '' and 
         comment ne '' then 
           comment = "DERIVATION: " || left(trim(comment)); 
 run;
 
-data _codelists;
-	set _codelists;
+data work.md_codelists;
+    set work.md_codelists;
 
-	codedvalue = htmlencode(codedvalue);
-	translated = htmlencode(translated);
+    codedvalue = htmlencode(codedvalue);
+    translated = htmlencode(translated);
 run;
 
-data _compmethod;
-	set _compmethod;
+data work.md_compmethod;
+    set work.md_compmethod;
 
-	computationmethod = htmlencode(computationmethod); 
+    computationmethod = htmlencode(computationmethod); 
 run;
 
 *******  FIX THIS LATER SINCE COMMENTS ARE NOW IN A SEPARATE SPREADSHEET **********;
-data _valuelevel;
+data work.md_valuelevel;
   length comment $ 2000;
-  set _valuelevel;
+  set work.md_valuelevel;
 
-	format comment;
-	informat comment;	
+    format comment;
+    informat comment;   
         origin = htmlencode(origin); 
-	label = htmlencode(label); 
-	comment = htmlencode(comment); 
+    label = htmlencode(label); 
+    comment = htmlencode(comment); 
         
         **** FOR ADAM, JOIN ORIGIN/"SOURCE" AND COMMENT
-	**** TO FORM "SOURCE/DERIVATION" METADATA;
-	if "&standard" = "ADAM" and origin ne '' and 
+    **** TO FORM "SOURCE/DERIVATION" METADATA;
+    if "&standard" = "ADAM" and origin ne '' and 
         comment ne '' then 
           comment = "SOURCE: " || left(trim(origin)) ||
                    " DERIVATION: " || left(trim(comment)); 
-	else if "&standard" = "ADAM" and origin ne '' and 
+    else if "&standard" = "ADAM" and origin ne '' and 
         comment = '' then 
           comment = "SOURCE: " || left(trim(origin)); 
-	if "&standard" = "ADAM" and origin = '' and 
+    if "&standard" = "ADAM" and origin = '' and 
         comment ne '' then 
           comment = "DERIVATION: " || left(trim(comment)); 
 run;
@@ -213,9 +213,9 @@ run;
 
 %if "&standard" = "ADAM" %then
   %do;
-    data _analysisresults;
+    data work.md_analysisresults;
       length programmingcode $800. ;
-      set _analysisresults;
+      set work.md_analysisresults;
         where displayid ne '';
           
       arrow + 1;
@@ -234,8 +234,8 @@ run;
     run;
 
     ** ENSURE UNIQUENESS ON DISPLAYID AND RESULTID AND CREATE A COMBO ID;
-    data _analysisresults;
-      set _analysisresults;
+    data work.md_analysisresults;
+      set work.md_analysisresults;
       by displayid notsorted;
     
       drop resultnum;
@@ -254,20 +254,20 @@ run;
     **      NOTE that DISPLAYID must match the LEAFID in EXTERNAL_LINKS ;
     **   2) To get the link information for the analysis reference      ;    
     proc sort
-      data = _analysisresults;
+      data = work.md_analysisresults;
       by displayid;
     run;
  
     proc sort
-      data = _externallinks 
+      data = work.md_externallinks 
       (drop = LeafRelPath SupplementalDoc AnnotatedCRF
       rename=(title=doctitle leafid=displayid leafpageref=dsplylfpgref leafpagereftype=dsplylfpgreftyp))
-      out  = _doc_links;
+      out  = work.md_doc_links;
       by displayid;
     run;
  
-    data _analysisresults;
-      merge _analysisresults (in = inar) _doc_links (in = indoc_links);
+    data work.md_analysisresults;
+      merge work.md_analysisresults (in = inar) work.md_doc_links (in = indoc_links);
       by displayid;
     
       if inar;
@@ -275,35 +275,35 @@ run;
     
     ** now merge in reference links;
     proc sort
-      data = _analysisresults;
+      data = work.md_analysisresults;
       by refleafid;
     run;
  
     proc sort
-      data = _externallinks 
+      data = work.md_externallinks 
       (drop = LeafRelPath SupplementalDoc AnnotatedCRF
       rename=(title=reftitle leafid=refleafid leafpageref=reflfpgref leafpagereftype=reflfpgreftyp))
-      out  = _doc_links;
+      out  = work.md_doc_links;
       by refleafid;
     run;
  
-    data _analysisresults;
-      merge _analysisresults (in = inar) _doc_links (in = indoc_links);
+    data work.md_analysisresults;
+      merge work.md_analysisresults (in = inar) work.md_doc_links (in = indoc_links);
       by refleafid;
     
       if inar;
     run;
 
     proc sort
-      data = _analysisresults;
+      data = work.md_analysisresults;
       by arrow;
     run;
   %end;
     
 **** CREATE DEFINE FILE HEADER SECTION;
 filename dheader "&path\define_header.txt";
-data _define_header;
-    set _define_header;
+data work.md_define_header;
+    set work.md_define_header;
 
     file dheader notitles;
 
@@ -345,10 +345,10 @@ data _define_header;
         ;
 run;
 
-data _define_header2;
+data work.md_define_header2;
     file dheader mod notitles;
-    set _externallinks;
-	
+    set work.md_externallinks;
+    
         if _n_ = 1 then
           put /
               @5 "<!-- ******************************************* -->" /
@@ -374,7 +374,7 @@ run;
 **** ADD LEAVES;
 filename leaves "&path\leaves.txt";
 data _null_;
-  set _externallinks;
+  set work.md_externallinks;
 
         file leaves notitles;
 
@@ -396,20 +396,20 @@ run;
 
 **** ADD ITEMOID TO VARIABLE METADATA;
 proc sort
-  data = _VARIABLE_METADATA;
+  data = work.md_VARIABLE_METADATA;
     by DOMAIN variable;
 
 proc sort
-  data = _valuelevel
+  data = work.md_valuelevel
   (keep = domain variable)
-  out = _vlmid
+  out = work.md_vlmid
   nodupkey;
     by domain variable;
     
-data _VARIABLE_METADATA;
+data work.md_VARIABLE_METADATA;
     length itemoid valuelistoid $ 200;
-    merge _VARIABLE_METADATA (in = in_vm rename=(domain = oid))
-          _vlmid             (in = in_vlm rename=(domain = oid))
+    merge work.md_VARIABLE_METADATA (in = in_vm rename=(domain = oid))
+          work.md_vlmid             (in = in_vlm rename=(domain = oid))
           ;
       by oid variable;
 
@@ -423,13 +423,13 @@ run;
         
 **** ADD ITEMOID TO VALUE LEVEL METADATA;
 proc sort
-  data = _valuelevel;
+  data = work.md_valuelevel;
     by domain variable valuevar valuename ;
 run;
     
-data _valuelevel _whereclause2 (keep = whereclauseoid domain valuevar valuename);
+data work.md_valuelevel work.md_whereclause2 (keep = whereclauseoid domain valuevar valuename);
     length valuelistoid $200. itemoid whereclauseoid $ 200;
-    set _valuelevel;
+    set work.md_valuelevel;
       by domain variable valuevar valuename ;
     
     ** NOTE: The VALUELISTOID has to be unique in order for the unique value/variable-level metadata ;
@@ -456,16 +456,16 @@ data _valuelevel _whereclause2 (keep = whereclauseoid domain valuevar valuename)
           whereclauseoid = 'WC.' || compress(substr(itemoid,4));
         else 
           whereclauseoid = 'WC.' || compress(itemoid);
-        output _whereclause2;
-        put whereclauseoid= valuelistoid= valuevar= valuename= ;
+        output work.md_whereclause2;
+*        put whereclauseoid= valuelistoid= valuevar= valuename= ;
       end;
       
-    output _valuelevel;
+    output work.md_valuelevel;
     format whereclauseoid $200.;
 run;
 
-data _whereclause2;
-  set _whereclause2;
+data work.md_whereclause2;
+  set work.md_whereclause2;
   
         retain seq ' 1' softhard 'Soft' comparator 'EQ' ;
         drop domain valuevar;
@@ -476,12 +476,12 @@ run;
 
 **** CREATE COMPUTATION METHOD SECTION;
 proc contents
-  data = _compmethod;
+  data = work.md_compmethod;
 run;
 
 filename comp "&path\compmethod.txt";
-data _compmethods;
-    set _compmethod;
+data work.md_compmethods;
+    set work.md_compmethod;
 
     file comp notitles;
 
@@ -502,8 +502,8 @@ run;
 
 **** CREATE COMMENTS SECTION;
 filename commnts "&path\comments.txt";
-data _comments;
-    set _comments;
+data work.md_comments;
+    set work.md_comments;
 
     file commnts notitles;
 
@@ -524,14 +524,14 @@ run;
 
 **** CREATE VALUE LEVEL LIST DEFINITION SECTION;
 proc sort
-    data=_valuelevel;
+    data=work.md_valuelevel;
     where valuelistoid ne '';
     by valuelistoid;
 run;
 
 filename vallist "&path\valuelist.txt";
-data _valuelevel;
-  set _valuelevel;
+data work.md_valuelevel;
+  set work.md_valuelevel;
     by valuelistoid;
 
     file vallist notitles;
@@ -570,15 +570,15 @@ run;
 
 **** CREATE WHERE CLAUSE DEFINITION SECTION;
 proc sort
-    data=_whereclause;
+    data=work.md_whereclause;
     where whereclauseoid ne '';
     by whereclauseoid seq;
 run;
 
 filename wherecls "&path\whereclause.txt";
-data _whereclause3;
+data work.md_whereclause3;
   length whereclauseoid values itemoid $200. softhard comparator $5. seq $2. ;
-  set _whereclause2 _whereclause ;
+  set work.md_whereclause2 work.md_whereclause ;
     by whereclauseoid seq;    
 
     file wherecls notitles;
@@ -612,13 +612,13 @@ run;
 
 **** CREATE "ITEMGROUPDEF" SECTION;
 proc sort
-    data=_VARIABLE_METADATA;
+    data=work.md_VARIABLE_METADATA;
     where oid ne '';
     by oid varnum;
 run;
 
 proc sort
-    data=_toc_metadata;
+    data=work.md_toc_metadata;
     where oid ne '';
     by oid;
 run;
@@ -640,10 +640,10 @@ proc format;
     ;
 run;
 
-data _itemgroupdef;
+data work.md_itemgroupdef;
     length label $ 40;
-    merge _toc_metadata (rename=(commentoid=dmcommentoid))
-          _VARIABLE_METADATA(drop=label)
+    merge work.md_toc_metadata (rename=(commentoid=dmcommentoid))
+          work.md_VARIABLE_METADATA(drop=label)
           ;
     by oid;
 
@@ -651,13 +651,13 @@ data _itemgroupdef;
 run;
 
 proc sort
-  data = _itemgroupdef;
+  data = work.md_itemgroupdef;
     by _order oid;
 run;
     
 filename igdef "&path\itemgroupdef.txt";
-data _itemgroupdef;
-  set _itemgroupdef;
+data work.md_itemgroupdef;
+  set work.md_itemgroupdef;
     by _order oid;
             
     file igdef notitles; 
@@ -704,7 +704,7 @@ data _itemgroupdef;
         
     if keysequence then 
       put  @9 'KeySequence="' keysequence +(-1) '"' ;
-		
+        
     if role ne '' and "&standard" = "SDTM" then
       put @9 'Role="' role +(-1) '"'    /
           @9 'RoleCodeListOID="CodeList.rolecode"/>'
@@ -727,8 +727,8 @@ run;
 **** CREATE "ITEMDEF" SECTION;
 filename idef "&path\itemdef.txt";
  
-data _itemdef;
-    set _VARIABLE_METADATA end=eof;
+data work.md_itemdef;
+    set work.md_VARIABLE_METADATA end=eof;
     by oid;
 
     file idef notitles; 
@@ -754,7 +754,7 @@ data _itemdef;
 
     if commentoid ne '' then
       put @7 'def:CommentOID="' commentoid +(-1) '"';
-    put @7 '>' / 			
+    put @7 '>' /            
 
         @7 '<Description>' /
         @9 '  <TranslatedText xml:lang="en">' label +(-1) '</TranslatedText>' /
@@ -802,9 +802,9 @@ run;
 **** ADD ITEMDEFS FOR VALUE LEVEL ITEMS TO "ITEMDEF" SECTION;
 filename idefvl "&path\itemdef_value.txt";
  
-data _itemdefvalue;
+data work.md_itemdefvalue;
     length sasfieldname $16.;
-    set _valuelevel end=eof;
+    set work.md_valuelevel end=eof;
     by valuelistoid;
 
     file idefvl notitles; 
@@ -882,7 +882,7 @@ run;
     filename ar "&path\analysisresults.txt";
 
     data _null_;
-      set _analysisresults end=eof;
+      set work.md_analysisresults end=eof;
 
       ** note that it is required that identical display IDs be adjacent to 
       ** each other in the metadata spreadsheet;
@@ -993,14 +993,14 @@ run;
 filename codes "&path\codelist.txt";
  
 proc sort
-    data=_codelists
+    data=work.md_codelists
     nodupkey;
     by codelistname codedvalue translated;
 run;
 
 **** MAKE SURE CODELIST IS UNIQUE;
-data _null_;	
-    set _codelists;
+data _null_;    
+    set work.md_codelists;
     by codelistname codedvalue;
 
     if not (first.codedvalue and last.codedvalue) then 
@@ -1009,12 +1009,12 @@ data _null_;
 run;
 
 proc sort
-    data=_codelists;
-    by codelistname rank; 	
+    data=work.md_codelists;
+    by codelistname rank;   
 run;
 
-data _codelists;
-    set _codelists end=eof;
+data work.md_codelists;
+    set work.md_codelists end=eof;
     by codelistname rank;
 
     file codes notitles; 
@@ -1031,13 +1031,13 @@ data _codelists;
 
     **** output codelists that are not external dictionaries;
     if codelistdictionary = '' then
-	  do;
+      do;
         put @7  '<CodeListItem CodedValue="' codedvalue +(-1) '"' @;
         if rank ne . then
-	  put ' Rank="' rank +(-1) '"' @;
-	if ordernumber ne . then
-	  put ' OrderNumber="' ordernumber +(-1) '"' @;
-	put '>';
+      put ' Rank="' rank +(-1) '"' @;
+    if ordernumber ne . then
+      put ' OrderNumber="' ordernumber +(-1) '"' @;
+    put '>';
         put @9  '<Decode>' /
             @11 '<TranslatedText>' translated +(-1) '</TranslatedText>' /
             @9  '</Decode>' /
@@ -1077,7 +1077,8 @@ data _null_;
     put @1 "exit";
 run;
 x "make_define";    
-
+x "del &path\*.txt";
+x "&path\&xsldefine";
 
 %mend make_define;
 

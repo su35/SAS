@@ -25,7 +25,7 @@
 	quit;
 
 	data &outdn;
-		length variable $32  %if %superq(vlen)^= %then value $&vlen; ;
+		length variable $32  %if %superq(vlen) ne %then value $&vlen; ;
 		set &dn;
 		variable=substr(table, 7);
 		value=strip(cats(of F_:));
