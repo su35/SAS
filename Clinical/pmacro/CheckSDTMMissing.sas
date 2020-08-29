@@ -1,36 +1,22 @@
 ﻿/* ********************************************************************************************
-* macro CheckMissing.sas: Ckeck are there missing values in SDTM required varailbles
-* metadatafile: the file containing the dataset metadata. 
-*       the default is the project folder\SDTM_METADATA.xlsx 
+* macro CheckSDTMMissing.sas: Ckeck are there missing values in SDTM required varailbles
 * dataset:  the dataset or domain name. the default is empty which means all dataset
 * random: dataset that include the usubjid which had been assinged treatment only
 * complete: dataset that include the usubjid which have completed only
-* exclu: variable list that would be ignored.
+* exclu: Variable list that would be ignored.
 * ********************************************************************************************/
-%macro CheckMissing(metadatafile=,dataset=, random=, complete=, exclu=);
-    %if %superq(metadatafile)= %then %let metadatafile=&pdir.sdtm_metadata.xlsx;
+%macro CheckSDTMMissing(dataset=, random=, complete=, exclu=);
+    %local dnum i j;
+
+    libname templib xlsx "&pdir.SDTM_METADATA.xlsm";
+
     %if %superq(random)= %then %let random=random;
     %if %superq(complete)= %then %let complete=complete;
-    %if %sysfunc(libref(sdtmfile)) ne 0 %then  
-            libname sdtmfile "&metadatafile";;
     %if %superq(dataset)^=  %then %StrTran(dataset);
     %if %superq(exclu)^=  %then %StrTran(exclu);
 
-    options nonotes;
-/*    proc sql;*/
-/*        create table work.cm_missing*/
-/*          (*/
-/*           domain char(6),*/
-/*           variable char(32),*/
-/*           frequency num,*/
-/*           percent num,*/
-/*           rand_miss num,*/
-/*           compl_miss num*/
-/*          );*/
-/*    quit;*/
-
     /*get the required varailbles list grouping by domain*/
-    proc sort data=sdtmfile."VARIABLE_METADATA$"n 
+    proc sort data=templib.VariableLevel 
                     (keep=domain variable label mandatory) 
                     out=work.cm_mandatory;
         by domain;
@@ -40,7 +26,7 @@
             ;
     run;
 
-    %local dnum i j;
+    libname templib clear;
 
     data _null_;
         set work.cm_mandatory end=eof;
@@ -60,7 +46,7 @@
 
     /*Check the missing.*/
     proc format;
-         value $cmisscnt    " "   = "CMissing"
+         value $cmisscnt " "= "CMissing"
                             other = "Nonmissing";
         value   nmisscnt     .="NMissing"
                             other="Nonmissing";
@@ -123,10 +109,11 @@
             domain="&&cm_dm&i";
             set work.cm_freq1(drop=missing);
             where value in("NMissing","CMissing");
+            drop value;
+
             call missing(rand_miss, rand_pect, compl_miss, compl_pect);
            set work.cm_freq2 key=variable;
             set work.cm_freq3 key=variable;
-            drop value;
             _error_=0;
         run;
 
@@ -141,17 +128,17 @@
 
     %end;
 
-    title "The missing of required variables";
-    proc print data = work.cm_missing;
-    run;
-    title;
+    %if %sysfunc(nobs(work.cm_missing))>0 %then %do;
+        title "The missing of required variables";
+        proc print data = work.cm_missing;
+        run;
+        title;
+    %end;
 
     proc datasets lib=work noprint;
         delete cm_: ;
     run;
     quit;
 
-    options notes ;
-
-%mend CheckMissing;
+%mend CheckSDTMMissing;
 

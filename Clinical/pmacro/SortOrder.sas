@@ -1,22 +1,29 @@
 ﻿/* *******************************************************************************************
-* SortOrder.sas sorting the dataset according to the KEYSEQUENCE metadata
+* SortOrder.sas 
+* sorting the SDTM dataset according to the KEYSEQUENCE metadata
 * specified sort order for a given dataset.
 * if there is a __seq variable in a dataset, then create the __seq value for it
 *
 * MACRO PARAMETERS:
 *   metadatafile = the file containing the dataset metadata. 
-*       the default is the project folder\SDTM_METADATA.xlsx 
+*       the default is the project folder\SDTM_METADATA.xlsm 
 *   dataset = the dataset or domain name, the default is empty which means all dataset
 * ********************************************************************************************/
-%macro SortOrder(metadatafile=&pdir.SDTM_METADATA.xlsx,dataset=)/minoperator ;
+%macro SortOrder(metadatafile, dataset=)/minoperator ;
     %local i dmlist dmnum seqdm;
-    %if %sysfunc(libref(sdtmfile)) ne 0 %then  
-        libname sdtmfile "&metadatafile";;
-    options nonotes;
+
+    %if %superq(metadatafile)= %then 
+            %let  metadatafile=&pdir.SDTM_METADATA.xlsm;
+    %else %if %index(metadatafile, \)=0 or %index(metadatafile, /) =0 %then 
+            %let metadatafile=&pdir.&metadatafile;
+
+    libname templib xlsx "&metadatafile";
 
     data work.so_temp;
-        set sdtmfile."VARIABLE_METADATA$"n (keep=domain variable keysequence);
+        set templib.VariableLevel (keep=domain variable keysequence);
     run;
+
+    libname templib clear;
 
     %if %superq(dataset)^=  %then %StrTran(dataset);
     proc sql noprint;
@@ -75,6 +82,5 @@
     run;
     quit;
 
-    options notes;
     %put NOTE:  ==The SortOrder executed completed.== ;
 %mend SortOrder;

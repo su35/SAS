@@ -5,9 +5,9 @@
 *  vars: the variable list that would be checked
 *  timevar: the varible that hold the start point and time point and its format would
 *           datetime or date class.
-*   speed: if speed set to a non-zero, 
+*  speed: if speed set to a non-zero, 
                 then use mpconnect to run code in parallel on the different processors
-*   numCPU: if speed set to a non-zero, specify how many CPU would be used. 
+*  numCPU: if speed set to a non-zero, specify how many CPU would be used. 
 *                       if the numCPU not be set, then all the CPU would be used*/
 %macro MissTimeWid(dn, vars, timevar, speed=0, numCPU=);
     %if %superq(dn)= or %superq(vars)= %then %do;
@@ -16,8 +16,9 @@
     %end;
     
     %local varn i var start fm;
+    %parsevars(&dn, vars)
     %let varn=%sysfunc(countw(&vars));
-    options nonotes;
+    
     proc sql noprint;
         select min(&timevar)  into :start
         from &dn;
@@ -27,6 +28,7 @@
         where libname=upcase("&pname") and memname=upcase("&dn")
                 and name="&timevar";
     quit;
+
     %if &speed=0 %then 
         %do;
             proc sql;
@@ -46,7 +48,10 @@
         %let rdn=%sysfunc(splitdn(&dn, set));
         %if %superq(lib)= %then %let lib=%sysfunc(getoption(user));
 
+         /*starts a server session*/
         options sascmd="!sascmd"; 
+
+        /*prepare the code that would be run on the different processors */
         %do i=1 %to &numCPU;
             %let j=0;
             %let code=create table pwork.mtw_misswid&i as ;
@@ -74,6 +79,7 @@
             %syslput ruser = &lib / remote = session&i;
             %syslput rcode=%str(&code) / remote = session&i;
 
+            /*submit to the server session*/
             rsubmit session&i wait = no inheritlib = (work = pwork 
                                                 %if &lib ne work %then &lib = &lib; ); 
                 options user=&ruser;
@@ -119,7 +125,7 @@
     proc sort data=misswid;
         by monthinterval variable;
     run;
-    options notes;
+    
     %put NOTE: == The macro MissTimeWid executed completed. ==;
     %put NOTE: == The result was stored in misswid. ==;
 %mend MissTimeWid;

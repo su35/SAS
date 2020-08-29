@@ -70,7 +70,6 @@ run;
 * ***********************************************************************/
 data _survivalist;
     set _survivalist;
-*   survival=survival*100;
     if upcase(trtp)="PLACEBO" then linecolor="red";
     else linecolor="#000";
 run;
@@ -92,7 +91,7 @@ ods html5 style=style.gchangecolor;
 ods proclabel"Study retention for the topiramate and placebo groups";
 proc sgplot data=_survivalist noautolegend sganno=_insertlab;
     title "Study retention for the topiramate and placebo groups";
-    step y=survival x=lastday / group=trtp lineattrs=(pattern=4 thickness=2 ) name="R";
+    step y=survival x=aval / group=trtp lineattrs=(pattern=4 thickness=2 ) name="R";
     xaxis label="Study Week" values=(1 to 84 by 7) 
         valuesdisplay=("1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12") offsetmin=0.05 offsetmax=0.05;
     yaxis label="Retention Rate" values=(0.5 to 1 by 0.1)
@@ -133,7 +132,7 @@ ods proclabel "Treatment group and last urine result prior to randomization
 for the percentage of subjects with a negative methamphetamine";
 /*==sg version==*/
 *ods graphics on /height=8in width =8in;
-proc sgplot data=_base_weekval  noborder sganno=_insertlab;
+proc sgplot data=base_weekval  noborder sganno=_insertlab;
     scatter y=ppcent x=avisitn /group=trtp markerattrs=(symbol=circlefilled size=10px) ;
     series y=ppcent x=avisitn /group=trtp  lineattrs=(pattern =4 thickness=2) name="BP";
     scatter y=tpcent x=avisitn /group=trtp markerattrs=(symbol=circlefilled size=10px) ;

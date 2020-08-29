@@ -1,4 +1,4 @@
-/* *************************************************
+﻿/* *************************************************
 * project _defination.sas
 * define project global macro variables
 * declare library, user folder and system options
@@ -29,18 +29,15 @@ run;
 /*define the project out put file folder*/
 %let pout=&pdir.outfiles\;
 
-/* pub: self-defined macro, subroutine and function
-   ori: original dataset that input from data
+/* publib: subroutine and function
+   orilib: original dataset that input from data
    plib: project lib*/
-libname pub "&proot.pub";
-libname ori  "&pdir.libori";
+libname publib "&proot.pub";
+libname orilib  "&pdir.libori";
 libname &pname  "&pdir.lib";
-/*must use the name "library", so that SAS can automatically see the SAS formats 
-without having to specify FMTSEARCH explicitly in the OPTIONS statement.*/
-libname library "&pdir.lib"; 
 
 options user= &pname;
-options cmplib = (pub.funcs); 
+options cmplib = (publib.funcs); 
 /*protect against overwriting the input data sets */
 options datastmtchk =corekeywords;
 
@@ -50,12 +47,17 @@ filename pmacro "&pdir.pmacro";
 options mautosource sasautos=(sasautos cmacros pmacro);
 *options mstored sasmstore=&pname;
 %include "&proot.cmacros\tools.sas";
+
 /*define the format search order*/
-options fmtsearch= (&pname library);
+options fmtsearch= (&pname work library);
 /*merge statement must be accompanied with by statement*/
 options mergenoby = error;
 
 options xsync noxwait ;
+/*uses threaded processing if available*/
+options threads=yes cpucount=&sysncpu;
+
 %symdel fullpath;
-/*copy the vardefine.csv to data folder. this command would be run once only*/
+
+/*copy the vardefine.csv to data folder. this command need to run once only*/
 *X "copy &proot.pub\vardefine.csv &pdir.vardefine.csv";

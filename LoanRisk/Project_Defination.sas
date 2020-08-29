@@ -1,4 +1,4 @@
-/* *************************************************
+﻿/* *************************************************
 * project _defination.sas
 * define project global macro variables
 * declare library, user folder and system options
@@ -24,7 +24,7 @@ data _null_;
    if fileexist("&pdir.libori")=0 then NewDir=dcreate("libori","&pdir");
    if fileexist("&pdir.outfiles")=0 then NewDir=dcreate("outfiles","&pdir");
    if fileexist("&pdir.pmacro")=0 then NewDir=dcreate("pmacro","&pdir");
-   if fileexist("&pdir.funcs")=0 then NewDir=dcreate("funcs","&pdir");
+/*   if fileexist("&pdir.funcs")=0 then NewDir=dcreate("funcs","&pdir");*/
 run; 
 /*define the project out put file folder*/
 %let pout=&pdir.outfiles\;
@@ -32,15 +32,15 @@ run;
 /* pub: self-defined macro, subroutine and function
    ori: original dataset that input from data
    plib: project lib*/
-libname pub "&proot.pub";
-libname ori  "&pdir.libori";
+libname publib "&proot.pub";
+libname orilib  "&pdir.libori";
 libname &pname  "&pdir.lib";
 /*must use the name "library", so that SAS can automatically see the SAS formats 
 without having to specify FMTSEARCH explicitly in the OPTIONS statement.*/
 libname library "&pdir.lib"; 
 
 options user= &pname;
-options cmplib =(pub.funcs &pname..funcs); 
+options cmplib =(publib.funcs ); 
 /*protect against overwriting the input data sets */
 options datastmtchk =corekeywords;
 
@@ -56,6 +56,9 @@ options fmtsearch= (&pname library);
 options mergenoby = error;
 
 options noxwait ;
+/*uses threaded processing if available*/
+options threads=yes cpucount=&sysncpu;
+
 %symdel fullpath;
 /*copy the vardefine.csv to data folder. this command would be run once only*/
 *X "copy &proot.pub\vardefine.csv &pdir.vardefine.csv";

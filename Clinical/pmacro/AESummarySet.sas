@@ -1,25 +1,25 @@
 ﻿/* **************************************************************
 * macro AESummarySet: create AE report dataset for report.
 * parameters
-*   dn: the name of the ae dataset; character
+*   datasets: the name of the ae dataset; character
 * ***************************************************************/
-%macro AESummarySet(dn);
-    %if %superq(dn)= %then  %let dn=adae;
+%macro AESummarySet(datasets);
+    %if %superq(datasets)= %then  %let datasets=adae;
     %if %symglobl(blankno)=0 %then %let blankno=&#160%str(;) ;
     %local i j k group tatolsub trtlevel sevlevel1 sevlevel2 sevlevel3 socnum;
     %let group =1;
-    options nonotes;
+
     proc sql noprint;
         select cats(count(usubjid)), cats(count(distinct trta))
             into : tatolsub,  :trtlevel
-            from &dn;
+            from &datasets;
 
         select distinct aesev into  :sevlevel1- :sevlevel3
-            from &dn
+            from &datasets
             order by aesev;
 
         select distinct aesoc   into  :ass_soc1-
-            from &dn;
+            from &datasets;
         %let socnum=&sqlobs;
 
         select 
@@ -30,7 +30,7 @@
             into %do i=0 %to %eval(&trtlevel-1);
                 :sub&i %if &i ne %eval(&trtlevel-1) %then %str(,);
             %end;
-            from &dn; 
+            from &datasets; 
 
         %if %sysfunc(exist(aereport)) %then drop table aereport; ;
     quit;
@@ -53,7 +53,7 @@
             %end;
             from  
                 (select usubjid, aesev, trtan 
-                    from &dn 
+                    from &datasets 
                     where aesoc = "&&ass_soc&i" 
                     group by aesev 
                     having max(aesev));
@@ -96,7 +96,7 @@
         run;
         %let group=%eval(&group+1);
     %end;
-    options notes;
+    
     %put NOTE:  ==The dataset aereport was created.==;
     %put NOTE:  ==The macro AESummarySet executed completed.== ;
 %mend AESummarySet;

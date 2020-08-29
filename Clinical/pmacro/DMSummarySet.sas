@@ -1,7 +1,7 @@
 ﻿/* *****************************************************************************************
 * macro DMSummarySet: create DM report dataset for report.
 * parameters
-*   dn: the name of the dm dataset; character
+*   datasets: the name of the dm dataset; character
 *   varlist: the dm dataset variables list which planned to report; character
 *           the variables order in the dm report follow the same order in this list. 
 *           the group variable in report dataset could be used to change this order.
@@ -9,18 +9,28 @@
             usually be arm/trtp armcd/trtpn; character
 *    analylist: required statistic data specified for the numeric variables; character
 * *****************************************************************************************/
-%macro DMSummarySet(dn, varlist=, class=, analylist=) /minoperator;
+%macro DMSummarySet(datasets, varlist=, class=, analylist=) /minoperator;
+    %if %superq(datasets)= %then %let datasets=addm; 
+    %if %superq(varlist) = %then %do;
+        %put ERROR: == The reporting variable list is not assigned ==;
+        %return;
+    %end;
+    %else %parsevars(&datasets, varlist);
+
     %local i group classc varnum stanum staname stalist nobs trtlevel;
-    %if %superq(dn)= %then %let dn=addm; 
     %if %symglobl(blankno)=0 %then %let blankno=&#160%str(;) ;
     /*The variable name will be upcase when the variables are refered in statistic table */
-    %let class=%upcase(&class);
     %let varlist=%upcase(&varlist);
-    %let classc=%scan(&class, 1, %str( ));
-    %let class  = %scan(&class, 2, %str( ));
+    %if %superq(class)= %then %do;
+        %let classc=TRTP;
+        %let class  = TRTPN;
+    %end;
+    %else %do;
+        %let class=%upcase(&class);
+        %let classc=%scan(&class, 1, %str( ));
+        %let class  = %scan(&class, 2, %str( ));
+    %end;
     %let group = 1;
-    ods select none;
-    options nonotes;
 
     /*count the variable number and required statistic number*/
     %let varnum = %sysfunc(Countw(&varlist));
@@ -34,12 +44,12 @@
     proc sql noprint;
         select  count(usubjid), put(count(distinct &class), 1.)
             into :nobs, :trtlevel
-            from &dn;
+            from &datasets;
         %if %sysfunc(exist(dmreport)) %then drop table dmreport; ;
     quit;
 
-    data work.dms_&dn;
-        set &dn;
+    data work.dms_&datasets;
+        set &datasets;
         output;
         &class = &trtlevel;
         &classc="Total";
@@ -47,8 +57,9 @@
     run;
 
     /*distribution check for numeric variables*/
+    ods select none; 
     ods output TestsForNormality = work.dms_normality;
-    proc univariate data=&dn normal;
+    proc univariate data=&datasets normal;
     run;
     ods output close;
 
@@ -56,7 +67,7 @@
     data _null_;
         set work.dms_normality;
         where varname in (&varlist) and 
-        /*select methord basing the obs number*/
+        /*select method basing the obs number*/
         testlab =   %if %eval(&nobs < 2000) %then "W"; 
                 %else "D";
                 ;
@@ -68,18 +79,18 @@
     %do i=1 %to &varnum;
         %let variable = %scan(&varlist, &i, %str( ));
         %GetDMStatistic()
-        proc append base=dmreport data=work.dms_&dn.temp;
+        proc append base=dmreport data=work.dms_&datasets.temp;
         run; 
         %let group=%eval(&group+1);
     %end;
+
+    ods select default; 
 
     proc datasets lib=work noprint;
     delete dms_: ;
     run;
     quit;
 
-    options notes;
-    ods select all;
     %put NOTE:  ==The dataset dmreport was created.==;
     %put NOTE:  ==The macro DMSummarySet executed completed.== ;
 %mend DMSummarySet;
@@ -90,7 +101,7 @@
         /*get the pvalue for each term*/
         %if  %eval(&&&variable.pval>=0.05) %then %do; /*normal*/
             ods output equality=work.dms_ppvalue ttests=work.dms_pvalue;
-            proc ttest data=&dn;
+            proc ttest data=&datasets;
                 class &class;
                 var &variable;
             run;
@@ -110,7 +121,7 @@
             run;
         %end;
         %else %if  %eval(&&&variable.pval<0.05) %then %do; /*abnormal*/
-            proc npar1way  data = &dn   wilcoxon   noprint;
+            proc npar1way  data = &datasets   wilcoxon   noprint;
                 class &class;
                 var &variable;
                 output out = work.dms_pvalue wilcoxon;
@@ -122,18 +133,18 @@
          %end;   
 
          /*get the statistic for each term*/
-          proc sort data=work.dms_&dn; 
+          proc sort data=work.dms_&datasets; 
                 by &class;
           run;
 
-          proc univariate data=work.dms_&dn noprint; 
+          proc univariate data=work.dms_&datasets noprint; 
                 by &class;
                 var &variable;
-                output out=work.dms_&dn.temp &stalist;
+                output out=work.dms_&datasets.temp &stalist;
           run;
 
-          proc transpose data=work.dms_&dn.temp name = term 
-                            out=work.dms_&dn.temp(drop=_LABEL_) prefix=ori; 
+          proc transpose data=work.dms_&datasets.temp name = term 
+                            out=work.dms_&datasets.temp(drop=_LABEL_) prefix=ori; 
                 id &class;
           run;
 
@@ -143,10 +154,10 @@
             pvalue =put (&&&variable.pval, d5.3-R);
         run;
 
-        data work.dms_&dn.temp;
+        data work.dms_&datasets.temp;
             length  group 3 term $ 50 &class.0-&class.&trtlevel $20 ;
             /*The first obs read form dms_label*/
-            set work.dms_label  work.dms_&dn.temp;
+            set work.dms_label  work.dms_&datasets.temp;
             array ori(*)  ori0-ori&trtlevel;
             array tar(*) $ &class.0-&class.&trtlevel;
             label pvalue= "P_value" term="Term";
@@ -164,9 +175,9 @@
         run;
     %end;
     %else %do; /*char variable*/
-        proc freq data=&dn noprint;
+        proc freq data=&datasets noprint;
             where &class not is missing and &variable not is missing;
-            table &variable*&class /chisq outpct out=work.dms_ptemp; /*Itls the option outpct，not the statement output*/
+            table &variable*&class /chisq outpct nowarn out=work.dms_ptemp; /*Itls the option outpct，not the statement output*/
             output out= work.dms_pvalue pchi;
         run;
         proc sql noprint;
@@ -175,9 +186,9 @@
         quit;
         %if &cellmin < 5 %then %do;
         /*there are some counts less than 5, get fisher pvalue */
-            proc freq data=&dn noprint;
+            proc freq data=&datasets noprint;
                 where &class not is missing and &variable not is missing;
-                table &variable*&class /exact ;
+                table &variable*&class /exact nowarn;
                 output out= work.dms_pvalue exact;
             run;
             data _null_;
@@ -192,15 +203,15 @@
             run;
             %end;
     
-        proc freq data=work.dms_&dn noprint;
+        proc freq data=work.dms_&datasets noprint;
             where &class not is missing;
-            table &class*&variable / missing outpct out=work.dms_&dn.temp; 
+            table &class*&variable / missing outpct out=work.dms_&datasets.temp; 
         run;
 
         /* Save the names that would be generated by following proc transpose into the macro variables 
         for variable order controlling.*/
-        data work.dms_&dn.temp;
-            set work.dms_&dn.temp;
+        data work.dms_&datasets.temp;
+            set work.dms_&datasets.temp;
             by &class;
             where &variable ne "";
             length value $ 20; /*those values will store in trtpn0 - trtpnN*/
@@ -208,11 +219,11 @@
             else  value=cats(count)||' ('||trim(put(pct_row,5.1-L))||'%)';
         run;
 
-        proc sort data=work.dms_&dn.temp; 
+        proc sort data=work.dms_&datasets.temp; 
             by &variable;
         run;
-        proc transpose data=work.dms_&dn.temp 
-                            out=work.dms_&dn.temp(drop=_name_) prefix=&class;
+        proc transpose data=work.dms_&datasets.temp 
+                            out=work.dms_&datasets.temp(drop=_name_) prefix=&class;
             var value;
             by &variable;
             id &class;
@@ -223,9 +234,9 @@
             pvalue =put(&&&variable.pval, d5.3-R);
         run;
 
-        data work.dms_&dn.temp; 
+        data work.dms_&datasets.temp; 
             length  group 3  term $ 50 &class.0-&class.&trtlevel $ 20; /*define the variable order in the dataset*/
-            set work.dms_label work.dms_&dn.temp;
+            set work.dms_label work.dms_&datasets.temp;
             label pvalue= "P_value" term="Term";
             group =&group;
             keep term &class.0-&class.&trtlevel pvalue group;

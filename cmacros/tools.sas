@@ -29,6 +29,33 @@
    %end;
    %else %put NOTE: There is no more global macro variables would be deleted;
 %mend;
+/*set the libname, when it is needed but not assigned.*/
+%macro getLib;
+    %local lib temp;
+    %let temp=%sysfunc(getoption(user));
+    %if %symglobl(pname)=1 %then %do;
+        %if %sysfunc(libref(&pname)) = 0 %then %let lib=&pname;
+    %end;
+    %else %if %superq(temp) ne %then %let lib=&temp;
+    %else lib=WORK;
+    &lib
+%mend getLib;
+/*get the engine of a libref. basically, for interacting with excel file. 
+the name of the sheet is different between the xlsx engine and excel engine*/
+%macro getEngine(lib);
+    %local lid rc enginenum engine;
+    %let lid=%sysfunc(open(sashelp.vlibnam(where=(libname=%upcase("&lib")))));
+    %if &lid = 0 %then %do;
+        %put %sysfunc(sysmsg());
+        %return;
+    %end;
+    %let rc=%sysfunc(fetch(&lid));
+    %let enginenum=%sysfunc(varnum(&lid, engine));
+    %let engine=%sysfunc(getvarc(&lid, &enginenum));
+    %let rc=%sysfunc(close(&lid));
+    &engine
+%mend getEngine;
+
 /*transfer a list of variables between with quotes and without quotes.
 * the "list" is the name of a variable or a macro variable which value is a char list.*/
 %macro StrTran(list);
@@ -40,15 +67,39 @@
       %let &list="&&&list";
       %let &list=%sysfunc(prxchange(s/[\s]+/%str(" ")/i, -1, &&&list));
    %end;
+   options quotelenmax;
 %mend;
+/*Modify the value of the uplevel macro variable directly*/
+%macro truncName(name, len=32);
+    %if %length(&&&name) >&len %then %do;
+        %local i j name2;
+        options noquotelenmax;
+        %let i=%sysfunc(countw(&&&name, _));
+
+        %if &i>1 %then %do;
+            %do j=1 %to &i;
+                    %let name2=&name2%sysfunc(propcase(%scan(&&&name, &j, _)));
+            %end;
+        %end;
+
+        %if %length(&name2)>32 %then %do;
+            %let &name=%substr(&name2, 1 , 32);
+            %put WARNING- The length of the &name truncated to &&&name;
+        %end;
+        %else %do;
+            %let &name=&name2;
+            %put WARNING- The "_" has been removed from &name;
+        %end;
+   %end;
+%mend truncName;
 /*Parse the variable list, such as AE:, v1-v5 and so on  *
-* the varlist is a name of a macro variable                     */
-%macro parsevars(dataset, varlist);
+* the param is a name of a macro variable                     */
+%macro parsevars(dataset, param);
     proc transpose data=&dataset (obs=0) out=work._variables (keep=_NAME_); 
-        var &&&varlist;
+        var &&&param;
     run;      
     proc sql noprint;
-        select trim(_name_) into : &varlist separated by " " 
+        select trim(_name_) into : &param separated by " " 
         from work._variables;
     quit;
 %mend;
@@ -68,51 +119,19 @@
 /*        %end;*/
 /*%mend;*/
 
-/*Split a string to two part. Typically, a full file name to path and file name or
-* a two-level dataset name to library and dataset name.*/
-%macro extract(source, delimiter, side);
-    %if %superq(delimiter) =  %then 
-        %do;
-            %put ERROR: The paras delimiter is missing, %extract failed;
-            %return;
-        %end;
-    %if %superq(side)= %then %let side=L;
-   %local point value;
-   %let point=%qsysfunc(find(&source, &delimiter, -999));
-   %if &point=0 %then 
-        %do;
-            %put NOTE: The delimiter has not been found, the &source will be retrun;
-            %let value=&source;
-        %end;
-   %else %do;
-      %if %upcase(&side)=L or &side=1 %then 
-                        %let value=%qsubstr(&source, 1, %eval(&point-1));
-      %else %let value=%qsubstr(&source, %eval(&point+1));
-   %end;
-   &value
-%mend extract;
 /*output data from a dataset to excel file. 
 *  varlist= define the output variables. if it is null then output all.
 * the output file will open automatically unless setting the open to another value */
 %macro ToExcel(dataset, outfile=, sheet=, varlist=, open=y); 
-   %local point dn;
-   /*if the &dataset may include the lib name, spilt the dataset name */
-   %let point=%index(&dataset, %str(.));
-   %if &point %then %let dn=%substr(&dataset, %eval(&point+1) );
-   %else %let dn=&dataset;
+   %local dn ext;
+    /*if the &dataset may include the lib name, spilt the dataset name */
+    %let dn=%sysfunc(splitstr(&dataset, right, .));
+    %if %superq(sheet)= %then %let sheet=&dn;
+    %if %superq(varlist) ne %then  %parsevars(&dn, varlist);
+     /*if there is ext name in file, then remove the ext name*/
+    %if %superq(outfile) = %then %let outfile=&pout.&dn;
+    %else %if %sysfunc(prxmatch(/[\/\\]/, &outfile)) =0 %then %let outfile=&pout.&outfile;
 
-   %if %superq(outfile)^= %then %do;
-      /*check if the file include the path*/
-      %let point=%sysfunc(find(&outfile,/, -500));
-      %if &point=0 %then %let point=%sysfunc(find(&outfile,\, -500));
-      %if &point=0 %then %let outfile=&pout.&outfile;  
-
-      /*if there is ext name in file, then remove the ext name*/
-      %let point=%sysfunc(find(&outfile,%str(.), -500));
-      %if &point %then %let outfile=%substr(&outfile, 1, %eval(&point-1));
-   %end;
-   %else %let outfile=&pout.&dn;
-   %if %superq(sheet)= %then %let sheet=&dn;
    proc export data=&dataset%if %superq(varlist)^= %then (keep=&varlist);
       outfile="&outfile" DBMS=xlsx replace;
       sheet="&sheet";
@@ -120,7 +139,7 @@
    %if &open=y %then  x "&outfile..xlsx";
    ;
 %mend;
-%macro readexcel(dn, file, nlist=);
+%macro readexcel(dn, file);
    %local point tranlist dlist relist;
    %let point=%sysfunc(find(&file, ., -999));
    %if &point=0 %then %let file=&file..xlsx;
@@ -130,18 +149,6 @@
    proc import datafile="&file"  out=&dn replace;
       getnames=yes;
    run;
-
-   %if %superq(nlist)^= %then %do;
-      %strtran(nlist)
-      proc sql noprint;
-         select trim(name)||"_n=input("||trim(name)||", 8.)",
-            trim(name), trim(name)||"_n="||trim(name)
-         into :tranlist separated by "; ", :dlist separated by " ", :relist separated by " "
-         from dictionary.columns
-         where libname=upcase("&pname") and memname=upcase("&dn")
-            and type="char" and name in (&nlist);
-      quit;
-   %end;
 
    %if %symlocal(tranlist) and %superq(tranlist)^= %then %do;
       data &dn(rename=(&relist));

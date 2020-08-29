@@ -1,12 +1,14 @@
-/* ==== run macro readdata() to input data ==== */
+﻿/* ==== run macro readdata() to input data ==== */
 %ReadData(oriname=accepted_2007_to_2018.csv);
+proc print data=orilib.accepted_2007_to_2018 (obs=10);
+run;
 /* ==== Get the real length of the char variables in accepted_2007_to_2018 ====*/
-%getVarLen(ori.accepted_2007_to_2018, outdn=_varlen)
+%getVarLen(orilib.accepted_2007_to_2018, outdn=_varlen)
 /* ==== Out put the variables infor. and compare with variable dictionary. ==== */
 proc sql;
     select name, type, length, rellen
     from (select name, type, length from dictionary.columns
-       where memname="ACCEPTED_2007_TO_2018" and libname="ORI"
+       where memname="ACCEPTED_2007_TO_2018" and libname="ORILIB"
       ) as a left join
             (select variable, length as rellen from _varlen) as b on a.name=b.variable 
      order by 1;
@@ -17,15 +19,15 @@ proc sql;
    select name
    into :lvarlist 
    from dictionary.columns 
-   where libname="ORI" and memname="ACCEPTED_2007_TO_2018"
+   where libname="ORILIB" and memname="ACCEPTED_2007_TO_2018"
                      and length>=20;
 quit;
 
 %let lvarlist=desc emp_title title hardship_type hardship_reason;
-/*For large dataset, it will take time to exacute the marcro CharValChk*/
-%CharValChk(ori.accepted_2007_to_2018, &lvarlist)
+
+%CharValChk(orilib.accepted_2007_to_2018, &lvarlist)
 /*hardship_type has only one value, check the percent of missing*/
-proc freq data=ori.accepted_2007_to_2018(keep=hardship_type);
+proc freq data=orilib.accepted_2007_to_2018(keep=hardship_type);
     table hardship_type /nocum missing;
 run;
 /*1. The desc, emp_title, and title are free text. then exclude them.
@@ -36,22 +38,25 @@ run;
 %let exclude=desc emp_title title hardship_type member_id zip_code url;
 /*Transform the datetime value to date value*/
 proc sql noprint;
-   select   trim(name)||"=datepart("||trim(name)||")", trim(name)
+   select   "if not missing("||name||") then "||trim(name)||"=datepart("||trim(name)||")", trim(name)
    into :trlist separated by "; ", :folist separated by " "
    from dictionary.columns
-   where libname="ORI" and memname="ACCEPTED_2007_TO_2018" and 
+   where libname="ORILIB" and memname="ACCEPTED_2007_TO_2018" and 
       format="DATETIME.";
 quit;
 /* ==== Copy the dataset to the loan library. ==== */
 /*1. The id has a type as char and the length is 48, this is abnormal. 
 *      Output the obs those the id length large than 10 to tmp_accp*/
 data accepted tmp_accp;
-   set ori.accepted_2007_to_2018 (drop=&exclude);
+   set orilib.accepted_2007_to_2018 (drop=&exclude);
    &trlist;
    format &folist date9. ;
    if lengthn(id) >12 then output tmp_accp;
    else output accepted;
 run;
+proc print data= tmp_accp;
+run;
+
 proc sql noprint;
    select max(length(id)) into :idlen trimmed
    from accepted (keep=id);
@@ -59,6 +64,8 @@ proc sql noprint;
    alter table accepted
    modify id char(&idlen) format=$&idlen.. informat=$&idlen..;
 quit;
+proc print data=accepted(obs=10);
+run;
 /* ======== Input the data dictionary in project lib. ========== */
 %ReadData(oriname=LCDataDictionary.xlsx);
 /* The dictionary includes three sheets, but in each sheet the variables name are different 
@@ -76,19 +83,19 @@ proc sql noprint;
 
    select length into :desLen
    from dictionary.columns
-   where memname="LCD_LOANSTATS" and libname="ORI" and lowcase(name)="description";
+   where memname="LCD_LOANSTATS" and libname="ORILIB" and lowcase(name)="description";
 quit;
 
 options varlenchk=nowarn;
 data _brow(index=(description));
  /*when the data was input into SAS lib, the variable name would be truncated to 32*/
     length browsenotesfile $32;
-    set ori.lcd_browsenotes;
+    set orilib.lcd_browsenotes;
     description=strip(description);
 run;
 data _loanstats(index=(variable));
     length variable $32;
-    set ori.lcd_loanstats (rename=(loanstatnew=variable));
+    set orilib.lcd_loanstats (rename=(loanstatnew=variable));
     /*remove all the illegal char such as blank, tab, linefeed and so on*/
     pid=prxparse("s/[^\w]//");
     variable=prxchange(pid, -1, variable);
@@ -124,6 +131,7 @@ data vardict;
     drop browsenotesfile;
     _error_=0;
 run;
+
 /*check if there is variable that should be included in apply risk model but doesn't include
 * in browsenotes*/
 proc print data=vardict;
@@ -133,8 +141,16 @@ run;
 /* Output to excel file, make it's easy to modify or correct.
 ** 1.  Add variable "class" and assign the value basing on description.
 ** 2.  Adjust the variable position if necessary*/
-%toexcel(vardict)
-%readexcel(vardict, &pout.vardict.xlsx)
+proc export data=vardict
+                    outfile="&pout.vardict"
+                    DBMS=xlsx;
+run;
+x "&pout.vardict.xlsx";
+
+libname templib xlsx "&pout.vardict.xlsx";
+proc copy in=templib out=&pname memtype=data;
+run;
+libname templib clear;
 
 /* ==== Check missing value ==== */
 %MissChk(accepted)
@@ -198,7 +214,8 @@ data CharMap;
    length vid value_n 4. variable value $32;
    input vid  variable   value value_n; 
 run;
-
+proc print data=CharMap;
+run;
 %ReCode(CharMap, outfile=reCode)
 /*check the code*/
 x "&pout.recode.txt";
@@ -206,6 +223,8 @@ x "&pout.recode.txt";
 data accepted_n;
    set accepted;
    %include "&pout.recode.txt";
+run;
+proc print data=accepted_n (obs=10);
 run;
 
 %cleanLib()

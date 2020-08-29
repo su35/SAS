@@ -1,35 +1,44 @@
-﻿/* **************************************************************
-* macro cdsic.sas
+/* **************************************************************
+* macro makeCdiscData.sas
 * Create the xpt datasets and define.xml file for ADaM and SDTM
 * Call macro P21Validate to validate the exported xpt datasets
 * standard:  ADaM or SDTM
-* file: specify the metadata file. the default is the adam_metadata.xlsx
-* or sdtm_metadata.xlsx file under the project folder
+* file: specify the metadata file. the default is the adam_METADATA.xlsm
+* or sdtm_METADATA.xlsm file under the project folder
 * **************************************************************/
-%macro cdsic(standard, file, xsldefine)/minoperator ;
+%macro makeCdiscData(standard, file, xsldefine)/minoperator ;
+    %if %superq(standard) = %then %do;
+        %put ERROR: == The standard is not assigned ==;
+        %return;
+    %end;
+    %if %upcase(&standard) ne SDTM and %upcase(&standard) ne ADAM %then %do;
+        %put ERROR: == A wrong standard is assigned ==;
+        %return;
+    %end;
+
+    %local i contents;
+
     %if %sysfunc(fileexist(&pdir&standard))=0 %then %do;
         data _null_;
             NewDir=dcreate("&standard","&pdir");
         run; 
     %end;
-    %if %superq(file)=  %then %let file=&standard._METADATA.xlsx;
+    %if %superq(file)=  %then %let file=&standard._METADATA.xlsm;
     %if %superq(xsldefine)=  %then %let xsldefine=define2-0-0.xsl;
 
-    %local i;
     %let path=&pdir.&standard;
     %let metadatafile=&pdir.&file;
     %sysexec copy &proot.pub\&xsldefine &path.\&xsldefine;
 
-    options nonotes;
     options varlenchk=nowarn;
 
-    %make_define(path=&path, metadata=&metadatafile);
+    %make_define(path=&path, metadata=&file);
 
-    /*work.md_toc_metadata was created by make_define*/
+    /*work.md_contents was created by make_define*/
     proc sql noprint;
         select name
             into :dmlist separated " "
-            from work.md_toc_metadata;
+            from work.md_contents;
     quit;
     %let dmnum=&sqlobs;
 
@@ -48,7 +57,8 @@
         run;
     %end;
     libname templb clear;
-    
+
+    /*pinnacle21-community vaildation*/
     %if %upcase(&standard) = ADAM %then %do;
         %let ctdatadate=2016-03-25;
         %let config=ADaM 1.0.xml;
@@ -70,7 +80,6 @@
     quit;
 
     options varlenchk=warn;
-    options notes;
-    %put NOTE:  ==The macro CDSIC executed completed.==;
-%mend cdsic;
+    %put NOTE:  ==The macro createCdiscData() executed completed.==;
+%mend makeCdiscData;
 

@@ -18,50 +18,39 @@
     %end;
     %local  vd_freqlist i vd_size vd_excp_class pctoutl pctoutu fclist keeplist mlen;
     /*to void a unnecessary out put, close the notes, html, and listing */
-    options nonotes  varlenchk=nowarn;
+    options varlenchk=nowarn;
 
     /*if the variable define dataset is available, get the required params that were not assinged*/
     %if %superq(vardefine)^= %then %do;
-        proc sql noprint;
-            %if %superq(target)= %then %do;
-                select distinct variable into :target trimmed
-                from &vardefine where target not is missing;
-            %end;
-            %if %superq(id)= %then %do;
-                select distinct variable into :id trimmed
-                from &vardefine where id not is missing;
-            %end;
-
-            select distinct variable into :keeplist  separated by " "
-            from &vardefine 
-            where exclude is missing and variable not in (
-                                        %if %superq(exclu) ^= %then %strtran(exclu) &exclu;
-                                        %if %superq(id) ^= %then "&id";
-                    );
-
-            %if %superq(interval)= %then %do;
-                select distinct variable into :interval  separated by " "
-                from &vardefine 
-                where class="interval" and variable ^="&target" and exclude is missing;
-            %end;
-            %if %superq(ordinal)= %then %do;
-                select distinct variable into :ordinal  separated by " "
-                from &vardefine 
-                where class="ordinal" and variable ^="&target" and exclude is missing;
-            %end;
-
-            %if %sysfunc(exist(&outdn)) %then drop table &outdn; ;
-        quit;
-        
-        proc sort data=&vardefine out=work.ve_&vardefine;
-            by vid;
+        data work.ve_&vardefine(drop=keeplist interval ordinal);
+            length keeplist interval ordinal $3200;
+            set &vardefine end=eof;
+            retain keeplist interval ordinal;
+            where exclude is missing %if %superq(exclu) ne %then %do;
+                                                    %strtran(exclu) 
+                                                    and variable not in (&exclu);
+                                                    %end;
+            ;
+            if missing(target) and missing(id) then do;
+                keeplist=catx(" ", keeplist, variable);
+                if class="interval" then interval=catx(" ", interval, variable);
+                if class="ordinal" then ordinal=catx(" ", ordinal, variable);
+            end;
+            else if not missing(target) then call symputx("target", target);
+            else if not missing(id) then call symputx("id", id);
+            
+            if eof then do;
+                call symputx("keeplist", keeplist);
+                call symputx("interval", interval);
+                call symputx("ordinal", ordinal);
+            end;
         run;
-
-        data work.ve_&vardefine;
-            set work.ve_&vardefine;
-            by vid;
-            if first.vid then output;
-        run;
+       %put _local_;
+        %if %sysfunc(exist(&outdn)) %then %do;
+            proc datasets noprint;
+            delete &outdn;  
+            run;
+        %end;
     %end;
     %else %if %superq(interval)= %then %do;
         proc sql noprint;
@@ -85,7 +74,7 @@
     proc sql;
         create table work.ve_tmp as
         select distinct variable, value , frequency 
-        from freq where value not is missing and value  ^="." 
+        from freq where value not is missing and value  ne "." 
         group by variable 
         having frequency=max(frequency)
         order by variable;
@@ -232,7 +221,7 @@
            if nelevels=1and missing <5, then missing value couldn't be conside as one class*/
         if nlevels<1 or (nlevels=1 and pctmissing<5) then exclude=1;
     run;
-
+    /*if one value is over 95%, then this variable is excluded*/
     proc sql;
         update &outdn set exclude=1
         where variable in (select variable from 
@@ -269,7 +258,7 @@
     run;
     quit;
     options varlenchk=warn;
-    options notes;
+    
     %put  NOTE:  ==The dataset vars, Freq and outlier were created.==;
     %put  NOTE:  ==The macro VarExplor executed completed. ==;
 %mend VarExplor;    
@@ -282,6 +271,7 @@
         stop;
     run;
     
+    ODS exclude GoodnessOfFit  FitQuantiles ParameterEstimates;
     proc univariate data=&dn (
             %if %superq(keeplist) ne %then keep=&keeplist;
             %else %do;

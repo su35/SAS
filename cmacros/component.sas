@@ -1,14 +1,14 @@
 ﻿/*get the information of installed component*/
 %macro component();
-	%let sashome = %sysget(SASHOME);
-	data work.sascompt(drop=hotfix order);
-		length component $ 64 order $ 32 custver  keyname $ 16 hotfix section $ 8;
-		retain component custver section keyname;
-		retain key 0;
-		drop section keyname key;
-		label component = 'COMPONENT';
-		infile "C:\Program Files\SASHome\deploymntreg\registry.xml";
-		input;
+    %let sashome = %sysget(SASHOME);
+    data pub.sascompt(drop=hotfix order);
+        length component $ 64 order $ 32 custver  keyname $ 16 hotfix section $ 8;
+        retain component custver section keyname;
+        retain key 0;
+        drop section keyname key;
+        label component = 'COMPONENT';
+        infile "C:\Program Files\SASHome\deploymntreg\registry.xml";
+        input;
 
 		if index(_infile_,'</Key>') then
 			do;

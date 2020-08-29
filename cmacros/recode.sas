@@ -6,15 +6,13 @@
 **   information, the dtype set to 1. This is the default.  
 **   If the dn is data dataset the dtype shoud be declare as 0 clearly.
 ** id: the id variable, when the dataset is a data dataset.
-** dataset: The variable name which represent dataset name if there are multi-dataset.
 ** *******************************************************************************/
-%macro ReCode(dn, outfile=reCode, path=, dtype=1, id=, dataset= );
+%macro ReCode(dn, outfile=reCode, path=, dtype=1, id= );
     %if %superq(dn)=  %then %do;
             %put ERROR: ======== the dataset is missing========== ;
             %return;
         %end;
     %if %superq(path)=  %then %let path=&pout;
-    options nonotes;
 
     %if &dtype=1 %then %defi_code();
     %else %if &dtype=0 %then %radn_code();
@@ -23,38 +21,29 @@
     run;
     quit;
 
-    options notes;
     %put  NOTE:  ==The dataset &outfile and &outfile..txt under &path were created.==;
     %put  NOTE:  ==The macro ReCode executed completed. ==;
 %mend ReCode;
 
 %macro defi_code();
-    %local dnum i  multdn tnum;
-    %if %superq(dataset)^=  %then  %do;
-        proc sql noprint;
-            select distinct dataset as dataset
-            into :dc_dn1-:dc_dn999
-            from &dn;
-        quit;
-        %let dnum=&sqlobs;
-    %end;
-    %else %let dnum=1;
+    %local dnum i  multdn codelen;
 
     proc sort data=&dn;
-        by %if &dnum > 1 %then &dataset ; vid value_n;
+        by vid value_n;
     run;
 
     proc sql noprint;
-        select count(distinct variable)*70 as tnum
-        into :tnum
+        select count(distinct variable)*70 as codelen
+        into :codelen
         from &dn;
     quit;
 
+    /*create the mapping code*/
     data &dn;
         set &dn end=eof;
         where not missing(value_n);
-        by %if &dnum > 1 %then &dataset ; vid;
-        length code d r $&tnum ;
+        by  vid;
+        length code d r $&codelen ;
         retain newv d r;
 
         if _N_=1 then do;
@@ -83,20 +72,16 @@
             code=trim(r)||";";
             output;
         end;
-        keep vid variable value value_n code %if &dnum > 1 %then &dataset;
-        ;
+        keep vid variable value value_n code;
     run;
-    %do i=1 %to &dnum;
-        filename code %if &dnum >1 %then "&path.&&dc_dn&i.._&outfile..txt"%str(;);
-                        %else "&path.&outfile..txt"%str(;);
-        data _null_;
-            set &dn;
-            %if &dnum >1 %then where &dataset="&&dc_dn&i"%str(;);
-            rc=fdelete("code");
-            file code lrecl=32767;
-            put code;
-        run;
-    %end;
+
+    filename code "&path.&outfile..txt"%str(;);
+    data _null_;
+        set &dn;
+        rc=fdelete("code");
+        file code lrecl=32767;
+        put code;
+    run;
 %mend;
 
 %macro radn_code();
@@ -155,11 +140,4 @@
         put code;
         if eof then put #2 droplist  #3 renamelist; 
     run;
-/*    %if %sysfunc(exist(&outfile)) %then %do;*/
-/*        proc sql noprint;*/
-/*            delete from &outfile where dataset="&dn";*/
-/*        quit;*/
-/*    %end;*/
-/*    proc append base=&outfile data=work.rc&outfile force;*/
-/*    run;*/
 %mend;

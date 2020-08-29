@@ -1,4 +1,4 @@
-*-------------------------------------------------------------------;
+﻿*-------------------------------------------------------------------;
 * Run the Pinnacle 21 Community validator in batch mode;
 *  TYPE= The standard being validated (SDTM, ADaM, Define, SEND, or Custom)
 *  SOURCES= Path of the directory that contains the SAS datasets or define file
@@ -41,7 +41,7 @@
                 );
                      
         ** set the appropriate system options;
-       ** options xsync noxwait ;
+       options xsync noxwait ;
                              
         ** specify the output report path;
         %let reportpath=&sources;                                                            

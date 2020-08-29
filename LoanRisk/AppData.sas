@@ -1,4 +1,4 @@
-/* == create risk modeling dataset, the target variable is loan_status  == */
+﻿/* == create risk modeling dataset, the target variable is loan_status  == */
 proc freq data=accepted_n;
     table loan_status/nocum;
 run;
@@ -18,14 +18,14 @@ run;
 
 proc sql noprint;
     select quote(trim(variable))
-    into :dlist separated by " "
+    into :delList separated by " "
     from misswid
     where timepoint>'01SEP2015'd;
 
     create table vardictApp as 
         select *
         from vardict 
-        where variable not in (&dlist) and apply not is missing and exclude is missing;
+        where variable not in (&delList) and apply not is missing;
 
     select variable
     into :keeplist separated by " "
@@ -39,6 +39,7 @@ data trainApp validApp;
     if issue_d <'01DEC2015'd then output trainApp;
     else output validApp;
 run;
+
 /*get the population of loan_status, and compute offset*/
 ods output OneWayFreqs=_freqt;
 proc freq data=trainApp;
@@ -49,10 +50,11 @@ proc freq data=validApp;
     table loan_status/nocum;
 run;
 ods output close;
+
+/*undersampling*/
 proc sort data=trainApp;
     by loan_status;
 run;
-/*undersampling*/
 proc surveyselect data=trainApp out=trainApp_samp(drop=SelectionProb SamplingWeight) 
         seed=1234 method=SRS rate=(0.3, 1) noprint;
     strata loan_status;
@@ -72,6 +74,8 @@ proc sql;
     (select table, percent/100 as rho1 from _freqs where loan_status=1) as c on a.table=c.table;
     drop table _freqt, _freqv, _freqs;
 quit; 
+proc print data=loan_popu;
+run;
 
 /*Transform the date value to the interval between that day and the issue day*/
 /* The absolute value of some variables are not very meaningful as a single value, 
@@ -95,6 +99,7 @@ data trainApp_1;
     if missing(annual_inc)=0 and annual_inc ne 0 then install_inc=installment/annual_inc*12*100;
 run;
 
+/*create the mapping code*/
 options noquotelenmax;
 data mapcode;
     code="&clist;
@@ -106,29 +111,28 @@ data mapcode;
     output;
 run;
 options quotelenmax;
-/*change the variable type to num for the variables that map to numeric type*/
+
+/*==change the variable type to num for the variables that map to numeric type==*/
 proc sql noprint;
     select distinct quote(trim(variable))
-    into : maplist separated by " "
+    into :maplist separated by " "
     from charmap
     where variable in (select variable from  vardict where apply not is missing);
 quit;
-
+/*keep one among the homogeneous variables, such as fico_range_high/fico_range_low*/
 data vardictApp;
     set vardictApp end=eof;
     vid=_N_;
-    if class="date" then do;
-        if variable = "issue_d" then  exclude=1;
-        else class="interval";
-    end;
+    if class="date" and variable ne "issue_d" then class="interval";
     if variable in (&maplist) then type="num";
     if variable="loan_status" then do;
         target=1;
-        exclude=1;
         class="binary";
     end;
-    if missing(id)=0 then exclude=1;
+    /*keep one among the homogeneous variables*/
+    if variable="fico_range_high" or variable="sub_grade" then exclude=1;
     output;
+    /*add the derived varialbe*/
     if eof then do;
         vid+1;
         variable ="inc_loan";
@@ -145,8 +149,16 @@ data vardictApp;
     end;
     drop apply;
 run;
+proc print data=vardictApp;
+run;
+
 /*create vars data set to collect the general info. of variables*/
 %VarExplor(trainApp_1, vardefine=vardictApp)
+data vars;
+    set vars;
+    if target=1 then class="binary";
+run;
+
 proc sql;
     select a.variable, type, class, n, nlevels, maxpercent, nmissing, exclude,pctmissing
     from (select distinct variable, max(percent) as maxpercent

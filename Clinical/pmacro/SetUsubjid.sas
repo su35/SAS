@@ -1,8 +1,8 @@
-%macro SetUsubjid(lib=ori, dataset=, length=, siteid=1);
+﻿%macro SetUsubjid(lib=ori, dataset=, length=, siteid=1);
     %let i count usubjid
     %if &siteid =1 %then %let usubjid=%str(catx('.',studyid,siteid,subjid));
     %else %let usubjid=%str(catx('.',studyid,subjid));
-    options nonotes;
+
     proc sql noprint;
     %if %superq(dataset)=  %then %do;
         select  memname
@@ -26,7 +26,6 @@
     %end;
     quit; 
     
-    options notes;
     %put NOTE: == The usubjid has been set. ==;
     %put NOTE: == Macro SetUsubjid runing completed. ==;
 %mend SetUsubjid;

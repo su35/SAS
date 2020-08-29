@@ -7,10 +7,8 @@
  ********************************************************/
 %macro RemoveAttr(lib=, sets=, attrib=);
     %local i j setnum;
-    %if %superq(lib)=  %then %do;
-        %if %sysfunc(libref(&pname)) = 0 %then %let lib=&pname;
-        %else lib=WORK;
-    %end;
+    %if %superq(lib)=  %then %let lib=%getLib;
+
     options nonotes;
     %if %superq(sets)= %then %do;
         proc sql noprint;
