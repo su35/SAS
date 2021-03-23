@@ -6,19 +6,24 @@
  ********************************************************/
 %macro LegVal(setname, vars)/minoperator;
     %local charlist numlist;
+
     %if %length(%superq(vars)) =  %then %do;
         %let charlist=_CHAR_;
         %let numlist=_NUMERIC_;
     %end;
     %else %do;
-        %local i lib dset ;
+        %local i lib dset;
         %let lib=%sysfunc(splitdn(&setname,lib));
         %let dset=%sysfunc(splitdn(&setname,set));
+        /*if setname is one-level data set name, then get the libref*/
+        %if %superq(lib)= %then %let lib=%getLib();
+
         %parsevars(&setname, vars)
         %StrTran(vars); 
+
         proc sql noprint;
-            select case when type = "char" then name else " " end, 
-                case when type = "num" then name else " " end
+            select ifc(type = "char", name, ""), 
+                      ifc(type = "num", name, "")
                 into :charlist separated by ' ', :numlist separated by ' '
                 from dictionary.columns
                 where libname= %upcase("&lib") and 
@@ -28,13 +33,20 @@
     %end;
 
     %if %superq(charlist) ne %then %do;
+        title "The value of the char type";
+        ods output OneWayFreqs = work.LV_freq;
         proc freq data = &setname;
-            tables &charlist / nocum nopercent;
+            %do i=1 %to %sysfunc(countw(&charlist));
+                tables %scan(&charlist, &i, %str(" ")) / nocum nopercent;
+            %end;
         run;
+        %CombFreq(work.LV_freq)
     %end;
     %if %superq(numlist) ne %then %do;
+        title "The statistic result of the numeric type";
         proc means data=&setname n nmiss min max;
             var &numlist;
         run;
     %end;
+    title;
 %mend LegVal;

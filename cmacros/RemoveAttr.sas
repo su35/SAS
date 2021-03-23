@@ -5,7 +5,7 @@
 * sets: the names of the datasets that would be modified
 * attrib: format, informat, label. if not sepcify, remove all
  ********************************************************/
-%macro RemoveAttr(lib=, sets=, attrib=);
+%macro RemoveAttr(lib, sets, attrib);
     %local i j setnum;
     %if %superq(lib)=  %then %let lib=%getLib;
 

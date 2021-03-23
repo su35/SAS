@@ -1,5 +1,6 @@
-﻿%macro SetUsubjid(lib=ori, dataset=, length=, siteid=1);
-    %let i count usubjid
+%macro SetUsubjid(lib=orilib, dataset=, length=, siteid=1);
+    %local i count usubjid;
+
     %if &siteid =1 %then %let usubjid=%str(catx('.',studyid,siteid,subjid));
     %else %let usubjid=%str(catx('.',studyid,subjid));
 
@@ -13,14 +14,14 @@
         %let count=&sqlobs;
         %do i=1 %to &count;
             alter table &lib..&&su_dataset&i
-                add usubjid char &length format=$&length..;
+                add usubjid char &length format=$&length.. label="Unique Subject Identifier";
             update &lib..&&su_dataset&i
                 set usubjid=&usubjid;
         %end;
     %end;
     %else %do;
         alter table &lib..&dataset
-            add usubjid char &length format=$&length..;
+            add usubjid char (&length) format=$&length.. label="Unique Subject Identifier";
         update &lib..&dataset
                 set usubjid=&usubjid;
     %end;

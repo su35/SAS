@@ -2,20 +2,20 @@
 *  DELETESUBR ;
 *  DELETEFUNC ;
 run;
-/* *********************************************************** */
+/* **** specifically for split the lib and dataset, if there is not lib then return lib as missing ******** */
 proc fcmp outlib=publib.funcs.val; 
    function splitdn(dn $, part $) $32;
         length lib dataset $32;
         dataset=scan(dn, 2, ".");
         if not missing(dataset) then do;
-            if upcase(part) = "LIB" or upcase(part) = "LIBRARY" then do;
+            if upcase(part) in ("L", "LIB","LIBRARY") then do;
                 lib=scan(dn, 1, ".");
                 return(trim(lib));
             end;
             else return(trim(dataset));
         end;
         else do;
-            if upcase(part) = "LIB" or upcase(part) = "LIBRARY" then do;
+            if upcase(part)  in ("L", "LIB","LIBRARY") then do;
                 call missing(lib); /*if the "." not be found return missing value for lib*/
                 return(lib);
             end;
@@ -23,23 +23,21 @@ proc fcmp outlib=publib.funcs.val;
         end;
    endsub; 
 run; 
-/* *********************************************************** */
+/* ************ using for split string**************** */
 proc fcmp outlib=publib.funcs.val; 
    function splitstr(str $, part $, delm $) $32;
-        length lib dataset $32;
         if index(str, delm) then do;
-            if upcase(part) = "L" or upcase(part) = "LEFT" then result= scan(str, 2, delm, "b");    
+            if upcase(part) = "L" or upcase(part) = "LEFT" then result= scan(str, 1, delm);    
             else if upcase(part) = "R" or upcase(part) = "RIGHT " then result= scan(str, 1, delm, "b");  
-            return(trim(result));
+            return(result);
         end;
         else do;
-            put "The delimiter could not be found";
             return(str);
         end;
    endsub; 
 run; 
 
-/* ****************************************************** */
+/* ************ get the number of obs in a dataset ****************** */
 proc fcmp outlib=publib.funcs.val; 
    function nobs(dn $) ;
       dsid=open(dn);
@@ -55,15 +53,20 @@ proc fcmp outlib=publib.funcs.val;
    endsub; 
 run; 
 
-/*macro var_length is defined in tools.sas*/
+/*get the real max length of the value of a single variable. macro var_length is defined in tools.sas*/
 proc fcmp outlib=publib.funcs.val; 
-   function var_length(dn $, var $) ;
-      length lib setn $32;
-      lib=splitdn(dn, "lib");
-      if missing(lib) then lib=getoption(user);
-      setn=splitdn(dn, "set");
-      rc = run_macro('var_length', lib, setn, var, len); 
-      if rc eq 0 then return (len);
+    function var_length(dn $, var $) ;
+        length lib setn $32;
+        lib=splitdn(dn, "lib");
+        if missing(lib) then do;
+            if %symglobl(pname)=1 then lib="&pname";
+            else if not missing(getoption('user')) then lib="user";
+            else lib="work";
+        end;
+
+        setn=splitdn(dn, "set");
+        rc = run_macro('var_length', lib, setn, var, len); 
+        if rc eq 0 then return (len);
          else return(0);
    endsub; 
 run; 

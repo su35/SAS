@@ -1,19 +1,21 @@
-﻿/* *******************************************************************************************
-* SortOrder.sas 
-* sorting the SDTM dataset according to the KEYSEQUENCE metadata
-* specified sort order for a given dataset.
-* if there is a __seq variable in a dataset, then create the __seq value for it
-*
-* MACRO PARAMETERS:
-*   metadatafile = the file containing the dataset metadata. 
-*       the default is the project folder\SDTM_METADATA.xlsm 
-*   dataset = the dataset or domain name, the default is empty which means all dataset
-* ********************************************************************************************/
-%macro SortOrder(metadatafile, dataset=)/minoperator ;
+﻿/* ***********************************************************************************************
+     Name  : SortOrder.sas
+     Author: Jun Fang 
+*    --------------------------------------------------------------------------------------------*
+     Purpose:  Sorting the SDTM dataset according to the KEYSEQUENCE metadata
+                    specified sort order for a given dataset.
+                    If there is a __seq variable in a dataset, then create the __seq value for it
+*    --------------------------------------------------------------------------------------------*
+     Parameters : metadatafile = The file containing the dataset metadata. 
+                                                The default is the project folder\SDTM_METADATA.xlsm
+                         dataset         = The list of domains whoes date will be sorted.
+                                                The default is empty which means all dataset.
+*   *********************************************************************************************/
+%macro SortOrder(metadatafile, dataset)/minoperator ;
     %local i dmlist dmnum seqdm;
 
     %if %superq(metadatafile)= %then 
-            %let  metadatafile=&pdir.SDTM_METADATA.xlsm;
+            %let  metadatafile=&pdir.SDTM_METADATA.xlsx;
     %else %if %index(metadatafile, \)=0 or %index(metadatafile, /) =0 %then 
             %let metadatafile=&pdir.&metadatafile;
 
@@ -65,16 +67,15 @@
         run;
 
         /*add seq value */
-        %if &dataset in (&seqdm) %then %do;
-            data &dataset;
-                set &dataset;
-                by usubjid;
-                retain seq;
-                if first.usubjid then seq = 0 ;
-                seq + 1;
-                &dataset.seq = seq;
-                drop seq;
-            run;
+        %if %superq(seqdm) ne %then %do;
+            %if &dataset in (&seqdm) %then %do;
+                data &dataset;
+                    set &dataset;
+                    by usubjid;
+                    if first.usubjid then &dataset.seq = 0 ;
+                    &dataset.seq + 1;
+                run;
+            %end;
         %end;
     %end;
     proc datasets lib=work noprint;

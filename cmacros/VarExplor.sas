@@ -45,10 +45,10 @@
                 call symputx("ordinal", ordinal);
             end;
         run;
-       %put _local_;
+       
         %if %sysfunc(exist(&outdn)) %then %do;
             proc datasets noprint;
-            delete &outdn;  
+                delete &outdn;  
             run;
         %end;
     %end;
@@ -68,6 +68,7 @@
         quit;
     %end;
 
+    /*get the statistical data*/
     %if %superq(interval)^=  %then %interval_stat();
     %nominal_stat()
     /*get the mode. the mode may has more than one value*/
@@ -125,11 +126,11 @@
         proc sort data=work.ve_utable;
             by variable;
         run;
-    /*comput the percent of outlier*/
 
+        /*comput the percent of outlier*/
         proc sql noprint;
             select variable, outlow, outup, n
-            into :vd_vname1-:vd_vname999, :vd_low1-:vd_low999, :vd_up1-:vd_up999, :vd_n1-:vd_n999
+            into :vd_vname1-, :vd_low1-, :vd_up1-, :vd_n1-
             from work.ve_utable
             where not missing(outlow) or not missing(outup);
         
@@ -168,7 +169,10 @@
             run;
         %end;
     %end;
+
+    %let oriops=%getops(quotelenmax);
     options noquotelenmax;
+
     data  &outdn;
         retain variable type class normal n nlevels nmissing pctmissing derive_var exclude target id mode description;
         length variable $ 32 class $8 derive_var exclude target id 8;
@@ -234,7 +238,7 @@
         by type class;
     run;
 
-    options quotelenmax;
+    options &oriops;
 
     proc sql ;
         title1 "The value level of the following continual variables, if any, is less then 10.";

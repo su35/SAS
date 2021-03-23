@@ -1,16 +1,22 @@
-﻿*--------------------------------------------------------------------------------------------------------------*;
-* macro ReLenStd.sas
-* Detect the max length required for a char variable,   and then reduce the variable-length as 
-* the real requirement and then reduce the variable length as the real requirement.
-* 
-* MACRO PARAMETERS:
-* standard: SDTM or ADaM. 
-* lib: The libref. The default is project library.
-* dn: The dataset list. The default is all dataset
-* min: The minimum length.  If it was assigned, only the length larger than this value would be change
-*---------------------------------------------------------------------------------------------------------------*;
-%macro ReLenStd(standard, lib=, dn=, min=)/minoperator ;
+﻿/* **********************************************************************************************************
+     Name  : ReLenStd.sas
+     Author : Jun Fang  Feb 2017
+*    --------------------------------------------------------------------------------------------------------*
+     Description : Detect the max length required for a char variable,   
+                         and then reduce the variable-length as the real requirement.
+     Purpose      : Before submitting, reduce the size of datasets. 
+*    --------------------------------------------------------------------------------------------------------*
+     Parameters : standard = The name of the standard, SDTM or ADaM. Required
+                         lib           = The libref in which the datasets are stored . The default is project library.
+                         datasets  = The list of the datasets in which the char variable length will be reduced. 
+                                            The default is all dataset.
+                         minlen    = The minimum length.  If it was assigned, only the length 
+                                            larger than this value would be change. Optional
+*   **********************************************************************************************************/
+%macro ReLenStd(standard, lib, datasets, minlen)/minoperator des="";
     %local i num;
+
+    /*assertions*/
     %if %superq(standard) = %then %do;
         %put ERROR: == The standard is not assigned ==;
         %return;
@@ -19,11 +25,13 @@
         %put ERROR: == A wrong standard is assigned ==;
         %return;
     %end;
+    /*default value assignments*/
     %if %superq(lib)= %then %let lib=%getLib;
-    %if %superq(dn) ne %then %StrTran(dn);
+
+    %if %superq(datasets) ne %then %StrTran(datasets);
 
     /*refer the metadata file as lib*/
-    libname templib xlsx "&pdir.&standard._METADATA.xlsm";
+    libname templib xlsx "&pdir.&standard._METADATA.xlsx";
 
     /*some char variables for which the length is known, such as USUBJID, would not be included.*/
     proc sort data = templib.VariableLevel
@@ -31,8 +39,8 @@
         where upcase(type) in ("TEXT",  "CHAR", "DATE")
         and upcase(variable) not in ("STUDYID", "DOMAIN", "USUBJID", "SUBJID")
        and upcase(codelistname) ne "YN"
-            %if %superq(dn) ne %then and dn in (&dn) ;
-            %if %superq(min) ne %then and length>&min;
+            %if %superq(datasets) ne %then and domain in (&datasets) ;
+            %if %superq(minlen) ne %then and length>&minlen;
             ;
         by domain varnum;
     run;
@@ -69,7 +77,7 @@
     data work.rlv_resize;
         set work.rlv_resize;
         by domain varnum;
-        length modifyList compList$32767;
+        length modifyList compList $ 32767;
         keep domain varnum variable length realLen;
         retain modifyList compList;
 
@@ -127,37 +135,3 @@
     run;
     quit;
 %mend ReLenStd;
-
-%macro mdVarLen(inLib, domain, modifyList, compList);
-        /*create a copy for validation*/
-        proc copy in=&inLib out=work memtype=data;
-            select &domain;
-        run;
-
-        %let modifylist=%sysfunc(compress(&modifylist, %str(%')));
-
-        /*relength*/
-        proc sql;
-            alter table &inLib..&domain
-            modify &modifyList;
-        quit;
-
-        /*Only the Value Comparison will be print when the values are different*/
-        ods exclude CompareDatasets CompareSummary CompareVariables;
-        proc compare base=&inLib..&domain comp=work.&domain
-                    out=work.rlv_comp outnoequal;
-                var &compList;    
-        run;
-
-        /*if no error, then delete the copy*/
-        %if %sysfunc(nobs(work.rlv_comp))=0 %then %do;
-            proc datasets lib=work noprint;
-               delete &domain ;
-            run;
-            quit;
-        %end;
-        %else %do;
-            %put REEOR: There is an issue when relength the variables in &domian;
-            %put ERROR- A copy of orignal &domain keeped in work library.;
-        %end;
-%mend mdVarLen;
