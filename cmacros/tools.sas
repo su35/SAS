@@ -6,7 +6,7 @@
 *   *********************************************************************************************/
 /*********************************************************************************************************
   Remove the temporary dataets.
-  Parameters : lib = The libref of the library that will be cleared.
+  Parameters : lib = The libref of the library that will be cleared. The default is the user library
 * ********************************************************************************************************/
 %macro cleanLib(lib);
    proc datasets %if not(%superq(lib)=) %then lib=&lib; 
@@ -24,7 +24,7 @@
          into :cleanlist separated by ' '
          from sashelp.vmacro
          where scope = 'GLOBAL' and substr(name,1,3) ne 'SYS'  and substr(name,1,3) ne 'SQL'  
-               and name not in("MVARCLEAN","PDIR","PNAME","PROOT","POUT");
+               and name not in("MVARCLEAN","PDIR","PNAME","PROOT","POUT","PTEMP");
    quit;
    %if %symexist(cleanlist) =1 %then %do;
       %symdel &cleanlist;

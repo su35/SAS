@@ -5,7 +5,7 @@
 * *************************************************************************/
 %macro LibInfor(lib, dataset);
     %local i setnum;
-    %if %superq(lib)= %then %let lib=&pname;
+    %if %superq(lib)= %then %let lib=%getLib;
     %if %superq(dataset) ne %then %let setnum=%sysfunc(countw(&dataset));
     proc format;
         value type 2="Char"

@@ -67,19 +67,43 @@ data work._ur work._urbase(keep=usubjid urorres urblfl urdy urtest);
             if upcase(cvar(i))="CREATIN" and not missing(ch(i)) Then  urorresu= "mg/dL"; 
             output work._ur;
             if urdy < 0 and urdy >=-14 then do;
-                if not missing(ch(i)) then do;
-                    urblfl="Y";
-                    output work._urbase;
-                end;
+                urblfl="Y";
+                output work._urbase;
             end;
         end;
     end;
 run;
-/*output the real urblfl*/
-proc sort data=work._urbase(where=(urblfl not is missing));
+/******************************************************************************************************
+  fetch the real urblfl
+* ****************************************************************************************************/
+/**/
+proc sort data=work._urbase;
     by usubjid urtest desending urdy;
 run;
-proc sort data=work._urbase out=work._urbase nodupkey;
+/*fetch the last nonzero and zero value respectively*/
+data work._urbase0 work._urbase1;
+    set work._urbase;
+    if input(urorres, 8.) >0 then output work._urbase1;
+    else if not missing(urorres) then output work._urbase0; 
+run;
+proc sort data=work._urbase0 nodupkey;
+    by usubjid urtest;
+run;
+proc sort data=work._urbase1 nodupkey;
+    by usubjid urtest;
+run;
+
+/*leave the last value, including missing value*/
+proc sort data=work._urbase nodupkey;
+    by usubjid urtest;
+run;
+/*if there are nonzero value, then replace the last value*/
+data work._urbase;
+    update work._urbase work._urbase0;
+    by usubjid urtest;
+run;
+data work._urbase;
+    update work._urbase work._urbase1;
     by usubjid urtest;
 run;
 

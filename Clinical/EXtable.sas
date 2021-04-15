@@ -99,6 +99,8 @@ title;
 /*create the length, label, and keep define value and store them in macro variables*/
 %getSetDef(sdtmmeta)
 
+%let unit=mg;
+%let form=TABLET;
 options varlenchk=nowarn;
 data ex(label=&exsetlabel);
     length &exlength;
@@ -109,8 +111,8 @@ data ex(label=&exsetlabel);
     call missing(exseq); 
     /*hardcord for the variables that have not value in dataset*/
     domain="EX";
-    exdosu = "mg";
-    exdosfrm= "TABLET";
+    exdosu = "&unit";
+    exdosfrm= "&form";
     exstdtc = put(startdate, E8601DA10.-L);
     exendtc = put(enddate, E8601DA10.-L);
     extrt = treat;

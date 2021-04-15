@@ -20,7 +20,7 @@
         %let setname=%scan(&filename, 1, .);
         %let path=&pdir.data;
     %end;
-    %if %superq(lib)= %then %let lib=%getlib();
+    %if %superq(lib)= %then %let lib=orilib;
 
     libname templb "&path";
     /*instead of using proc copy, using data step input data to avoid the encoding problem*/

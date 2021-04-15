@@ -61,6 +61,7 @@ data _ae(drop=errordata)
                 random(keep= usubjid  randdate); 
     by usubjid;
     drop sevlist serlist ;
+    call missing(sevlist, serlist);
     array type (48) $ &type ;
     array sev (48) $ &sev ;
     array act (48) $ &act; 

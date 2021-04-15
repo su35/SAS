@@ -12,7 +12,7 @@
 /*    %if %superq(delm)= %then %let delm=dlm;*/
     /*detect if the filename include the path. if it include the path, extract the setname. else, add
       project data path to filename*/
-    %if %superq(lib)= %then %let lib=%getlib();
+    %if %superq(lib)= %then %let lib=orilib;
     %let filename=%nrbquote(%sysfunc(dequote(&filename)));
     %if %index(&filename,\) %then %let setname=%extract(&filename, R, \);
     %else %do;

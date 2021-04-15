@@ -78,8 +78,6 @@ options datastmtchk =corekeywords;
 automatically returns to the SAS session after the specified command is executed*/
 options xsync noxwait ;
 
-/*uses threaded processing if available*/
-options threads=yes cpucount=&sysncpu;
 
 /*forcing the serious notes to be errors to avoid the invisible errors*/
 options dsoptions=note2err;

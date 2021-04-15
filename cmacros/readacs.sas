@@ -29,7 +29,7 @@
         %let setname=&filename;
         %let filename=&pdir.data\&filename;
     %end;
-    %if %superq(lib)= %then %let lib=%getlib();
+    %if %superq(lib)= %then %let lib=orilib;
 
     libname templb access "&filename";
 

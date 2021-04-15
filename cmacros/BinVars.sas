@@ -1,4 +1,4 @@
-/*  ******************************************************************************************
+﻿/*  ******************************************************************************************
 *   Macro BinVars: discretize the interval variables and collaspsing the levels of 
 *   the ordinal and nominal variables.
 *   dn: dataset name of which will be access
@@ -23,11 +23,16 @@
         %return;
     %end;
     %local interval ordinal nominal nom t_type t_class desc_len var nvars;
+
+    %let oriops=%getops(quotelenmax);
     options noquotelenmax ;
+
     %if %superq(varlist)^= %then %do;
         %parsevars(&dn, varlist)
         %StrTran(varlist)
     %end;
+    /* For split and hpsplit the leafsize need to define. if leafsize has not been passed, then assign the value,
+    *  else check if the leafsize is larger than 5% of the total obs*/
     %if %superq(branch)= or %upcase(&branch)=SPL or %upcase(&branch)=HPS %then %do;
         %if %superq(leafsize)= %then %do;
             data _null_;
@@ -49,11 +54,13 @@
     %if %superq(outdn)= %then %let outdn=bin;
 
     proc sql noprint;
-        
+        /*Get the type and class of the target variable.
+        *  If target has not been passed, then get the name of the target variable.*/
         select type, class%if %superq(target)= %then, variable;
         into :t_type, :t_class%if %superq(target)= %then, :target;
         from &pdn where target not is missing%str(;) ;
 
+        /*Group the variables base on class*/
         select ifc(class="interval", variable, "") , ifc(class="ordinal", variable, "") , 
                 ifc(class="nominal", variable, "")  
         into :interval separated by " ", :ordinal separated by " ", :nominal separated by " "
@@ -149,7 +156,7 @@
     run;
     quit;
 
-    options quotelenmax;
+   options &oriops;
 
     %if %superq(branch)= %then
     %put NOTE:  ==== Result stored in dataset bin_hps, bin_spl, bin_opt, and bin_clu====;
